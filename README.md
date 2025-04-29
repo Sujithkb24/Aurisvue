@@ -1,4 +1,4 @@
-AurisVue – Real-Time Speech-to-ISL Translator
+# AurisVue – Real-Time Speech-to-ISL Translator
 
 📖 Overview
 
@@ -142,4 +142,4 @@ Project Maintainer: Sujith (sujithkb24@gmail.com)
 
 GitHub: Sujithkb24/AurisVue
 
-Bridging languages, one sign at a time.
+Where every word meeets its sign.
