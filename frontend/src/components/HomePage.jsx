@@ -21,6 +21,9 @@ const HomePage = () => {
       navigate(`/${mode}`);
     }
   };
+  const navigateToHome = () =>{
+    navigate('/');
+  }
 
   const handleTeacherSelect = (teacherId) => {
     setShowTeacherModal(false);
@@ -95,7 +98,7 @@ const HomePage = () => {
   darkMode={darkMode}
   navigateToMode={navigateToMode}
   navigateToHome={navigateToHome}
-  activeMode={activeMode}
+  //activeMode={activeMode}
 />
       
       {/* Teacher Selection Modal */}

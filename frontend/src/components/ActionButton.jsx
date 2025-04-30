@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Mic, Info, Settings, X, BookOpen, ExternalLink, Home } from 'lucide-react';
 import styled from 'styled-components';
-import ModeSelector from './ModeSelector'; // Import the ModeSelector component
+import ModeSelector from './mode-select'; // Import the ModeSelector component
 
 const FloatingActionButton = ({ darkMode, navigateToMode, activeMode, navigateToHome }) => {
   const [isExpanded, setIsExpanded] = useState(false);
