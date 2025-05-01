@@ -1,29 +1,63 @@
-import { Mic, BookOpen, ExternalLink } from 'lucide-react';
+import React from 'react';
+import { Mic, BookOpen, Chrome, BarChart2 } from 'react-feather';
 
-const ModeSelector = ({ activeMode, setActiveMode, darkMode = true }) => {
+const ModeSelector = ({ activeMode, setActiveMode, darkMode }) => {
+  const modes = [
+    {
+      id: 'public',
+      name: 'Public Mode',
+      icon: <Mic size={18} />,
+      color: 'blue'
+    },
+    {
+      id: 'class',
+      name: 'Class Mode',
+      icon: <BookOpen size={18} />,
+      color: 'purple'
+    },
+    {
+      id: 'plugin',
+      name: 'Plugin Mode',
+      icon: <Chrome size={18} />,
+      color: 'green'
+    },
+    {
+      id: 'analytics',
+      name: 'Analytics',
+      icon: <BarChart2 size={18} />,
+      color: 'orange'
+    }
+  ];
+
+  // Get the color class based on color name and active state
+  const getColorClass = (color, isActive) => {
+    if (isActive) {
+      return {
+        blue: darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white',
+        purple: darkMode ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white',
+        green: darkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white',
+        orange: darkMode ? 'bg-orange-600 text-white' : 'bg-orange-500 text-white'
+      }[color];
+    }
+    
+    return darkMode 
+      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+      : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+  };
+
   return (
-    <div className={`flex justify-center space-x-2 p-2 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-      <button 
-        onClick={() => setActiveMode('public')} 
-        className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${activeMode === 'public' ? (darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300')}`}
-      >
-        <Mic size={18} />
-        <span className="hidden sm:inline">Public Mode</span>
-      </button>
-      <button 
-        onClick={() => setActiveMode('class')} 
-        className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${activeMode === 'class' ? (darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300')}`}
-      >
-        <BookOpen size={18} />
-        <span className="hidden sm:inline">Class Mode</span>
-      </button>
-      <button 
-        onClick={() => setActiveMode('plugin')} 
-        className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${activeMode === 'plugin' ? (darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300')}`}
-      >
-        <ExternalLink size={18} />
-        <span className="hidden sm:inline">Plugin Mode</span>
-      </button>
+    <div className="flex flex-col space-y-2">
+      {modes.map(mode => (
+        <button
+          key={mode.id}
+          onClick={() => setActiveMode(mode.id)}
+          className={`flex items-center px-3 py-2 rounded-lg transition-colors
+                    ${getColorClass(mode.color, activeMode === mode.id)}`}
+        >
+          <span className="mr-2">{mode.icon}</span>
+          {mode.name}
+        </button>
+      ))}
     </div>
   );
 };

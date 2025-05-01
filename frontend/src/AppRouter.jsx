@@ -4,7 +4,7 @@ import PublicMode from './components/modes/public';
 import ClassMode from './components/modes/class';
 import PluginMode from './components/modes/plugin';
 import PluginActivation from './components/plugin/activation';
-import TeacherAnalyticsDashboard from './components/TeacherAnalyticsDashboard';
+import TeacherAnalyticsDashboard from './components/TeacherAnalytics';
 
 const AppRouter = () => {
   return (

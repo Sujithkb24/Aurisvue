@@ -18,7 +18,7 @@ const ClassMode = ({ darkMode = true, onBack }) => {
   const [isTeacher, setIsTeacher] = useState(false);
   const [isMicActive, setIsMicActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [sessionSpeed, setSessionSpeed] = useState(1); // 1 = normal, 0.5 = slow, etc.
+  const [sessionSpeed, setSessionSpeed] = useState(1);
   
   // State for speech and transcripts
   const [detectedSpeech, setDetectedSpeech] = useState("");

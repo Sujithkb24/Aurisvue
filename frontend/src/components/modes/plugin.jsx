@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Video, Mic, MicOff, Volume2, VolumeX, MessageSquare, X } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
-import Header from '../Header';
+import Header from '../header';
 
 const PluginMode = ({ darkMode = true, onBack }) => {
   // State management

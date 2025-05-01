@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
-import ISLViewer from '../ISL_viewer'; // Changed from ISLModel to ISLViewer
+import ISLViewer from '../ISL_viewer'; 
 import Header from '../header';
 
 const PublicMode = ({ darkMode = true, onBack }) => {

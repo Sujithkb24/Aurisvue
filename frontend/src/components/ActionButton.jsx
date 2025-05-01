@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Mic, Info, Settings, X, BookOpen, ExternalLink, Home } from 'lucide-react';
-import styled from 'styled-components';
-import ModeSelector from './mode-select'; // Import the ModeSelector component
+import { Mic, BookOpen, Home, Info, Settings, X } from 'react-feather';
+import ModeSelector from './mode-select';
 
+// CSS-in-JS solution using regular className instead of styled-components
 const FloatingActionButton = ({ darkMode, navigateToMode, activeMode, navigateToHome }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isActive, setIsActive] = useState(false);
@@ -66,248 +66,129 @@ const FloatingActionButton = ({ darkMode, navigateToMode, activeMode, navigateTo
   };
 
   return (
-    <StyledFAB darkMode={darkMode}>
+    <div className="fixed bottom-8 right-8 z-50">
       {/* Mode Selector Overlay */}
       {showModeSelector && (
-        <div className="mode-selector">
-          <h3 className="mode-title">Switch Mode</h3>
-          <ModeSelector 
+        <div className={`absolute bottom-20 right-0 w-64 p-4 rounded-lg shadow-lg
+                        ${darkMode ? 'bg-gray-800' : 'bg-white'}
+                        animate-fadeIn`}>
+          <h3 className={`text-base font-semibold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+            Switch Mode
+          </h3>
+          
+          {activeMode && <ModeSelector 
             activeMode={activeMode} 
             setActiveMode={(mode) => handleModeChange(mode)} 
             darkMode={darkMode} 
-          />
-          <CloseButton 
+          />}
+          
+          <button 
             onClick={() => setShowModeSelector(false)}
-            darkMode={darkMode}
+            className={`absolute top-3 right-3 p-1 rounded-full
+                      ${darkMode ? 'text-gray-400 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'}`}
           >
             <X size={18} />
-          </CloseButton>
+          </button>
         </div>
       )}
       
       {/* Main FAB Container */}
-      <div className={`fab-container ${isExpanded ? 'expanded' : ''}`}>
+      <div className={`relative flex flex-col items-center ${isExpanded ? 'expanded' : ''}`}>
         {isExpanded && (
-          <div className="fab-options">
-            <ActionButton 
+          <div className="flex flex-col-reverse gap-4 mb-4">
+            <button 
               onClick={() => handleActionClick('translate')} 
-              className={`action-button ${isActive ? 'active' : ''}`}
-              darkMode={darkMode}
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
+                        transition-all hover:scale-110
+                        ${isActive 
+                          ? 'bg-red-500 text-white' 
+                          : darkMode 
+                            ? 'bg-gray-800 text-white' 
+                            : 'bg-white text-gray-700'}`}
             >
               <Mic size={20} />
-              <span className="tooltip">Start Translation</span>
-            </ActionButton>
+              <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
+                              opacity-0 group-hover:opacity-100 transition-opacity
+                              ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                Start Translation
+              </span>
+            </button>
             
-            <ActionButton 
+            <button 
               onClick={() => handleActionClick('modes')} 
-              className="action-button"
-              darkMode={darkMode}
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
+                        transition-all hover:scale-110 group
+                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
             >
               <BookOpen size={20} />
-              <span className="tooltip">Switch Mode</span>
-            </ActionButton>
+              <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
+                              opacity-0 group-hover:opacity-100 transition-opacity
+                              ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                Switch Mode
+              </span>
+            </button>
 
-            <ActionButton 
+            <button 
               onClick={() => handleActionClick('home')} 
-              className="action-button"
-              darkMode={darkMode}
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
+                        transition-all hover:scale-110 group
+                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
             >
               <Home size={20} />
-              <span className="tooltip">Go Home</span>
-            </ActionButton>
+              <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
+                              opacity-0 group-hover:opacity-100 transition-opacity
+                              ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                Go Home
+              </span>
+            </button>
             
-            <ActionButton 
+            <button 
               onClick={() => handleActionClick('info')} 
-              className="action-button"
-              darkMode={darkMode}
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
+                        transition-all hover:scale-110 group
+                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
             >
               <Info size={20} />
-              <span className="tooltip">Help</span>
-            </ActionButton>
+              <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
+                              opacity-0 group-hover:opacity-100 transition-opacity
+                              ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                Help
+              </span>
+            </button>
             
-            <ActionButton 
+            <button 
               onClick={() => handleActionClick('settings')} 
-              className="action-button"
-              darkMode={darkMode}
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
+                        transition-all hover:scale-110 group
+                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
             >
               <Settings size={20} />
-              <span className="tooltip">Settings</span>
-            </ActionButton>
+              <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
+                              opacity-0 group-hover:opacity-100 transition-opacity
+                              ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                Settings
+              </span>
+            </button>
           </div>
         )}
         
-        <MainButton 
-          onClick={toggleExpand} 
-          className="main-button full-rounded"
-          darkMode={darkMode}
+        <button 
+          onClick={toggleExpand}
+          className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg 
+                    transition-transform active:scale-95
+                    ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'}
+                    text-white z-10`}
         >
           {isExpanded ? <X size={24} /> : <Mic size={24} />}
-          <div className="border full-rounded" />
-        </MainButton>
+          <div className={`absolute inset-0 rounded-full border-2 
+                        ${darkMode ? 'border-blue-500' : 'border-blue-400'}
+                        transition-all duration-300 
+                        hover:w-16 hover:h-16 hover:top-1/2 hover:left-1/2 hover:-translate-x-1/2 hover:-translate-y-1/2`}>
+          </div>
+        </button>
       </div>
-    </StyledFAB>
+    </div>
   );
 };
-
-// Styled components
-const StyledFAB = styled.div`
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  z-index: 999;
-  
-  .fab-container {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .fab-options {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    transition: all 0.3s ease;
-  }
-
-  .tooltip {
-    position: absolute;
-    right: 4rem;
-    background: ${props => props.darkMode ? '#374151' : '#f3f4f6'};
-    color: ${props => props.darkMode ? '#ffffff' : '#1f2937'};
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  }
-  
-  .action-button:hover .tooltip {
-    opacity: 1;
-  }
-
-  .active {
-    background: #ef4444 !important;
-    svg {
-      color: white;
-    }
-  }
-  
-  /* Mode Selector Styling */
-  .mode-selector {
-    position: absolute;
-    bottom: 5rem;
-    right: 0;
-    width: 16rem;
-    padding: 1rem;
-    background: ${props => props.darkMode ? '#1f2937' : '#ffffff'};
-    border-radius: 1rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.2);
-    animation: slideIn 0.3s ease;
-  }
-  
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  .mode-title {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    color: ${props => props.darkMode ? '#e5e7eb' : '#374151'};
-  }
-`;
-
-const MainButton = styled.button`
-  font-size: 16px;
-  position: relative;
-  width: 3.5rem;
-  height: 3.5rem;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.darkMode ? '#3b82f6' : '#60a5fa'};
-  color: white;
-  transition: all 0.1s linear;
-  box-shadow: 0 0.4em 1em rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  
-  &:active {
-    transform: scale(0.95);
-  }
-  
-  .border {
-    position: absolute;
-    border: 0.15em solid ${props => props.darkMode ? '#2563eb' : '#3b82f6'};
-    transition: all 0.3s 0.08s linear;
-    top: 50%;
-    left: 50%;
-    width: 3.5rem;
-    height: 3.5rem;
-    transform: translate(-50%, -50%);
-  }
-  
-  &:hover .border {
-    width: 4rem;
-    height: 4rem;
-  }
-  
-  &.full-rounded {
-    border-radius: 50%;
-  }
-`;
-
-const ActionButton = styled.button`
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.darkMode ? '#1f2937' : '#ffffff'};
-  color: ${props => props.darkMode ? '#ffffff' : '#4b5563'};
-  border: none;
-  box-shadow: 0 0.2em 0.5em rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    transform: scale(1.1);
-  }
-`;
-
-const CloseButton = styled.button`
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: ${props => props.darkMode ? '#9ca3af' : '#6b7280'};
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    color: ${props => props.darkMode ? '#f3f4f6' : '#111827'};
-  }
-`;
 
 export default FloatingActionButton;
