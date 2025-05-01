@@ -1,24 +1,19 @@
 import { useState } from 'react';
-import { Sun, Moon, Mic, BookOpen, Chrome, ArrowLeft } from 'lucide-react';
+import { Sun, Moon, Mic, BookOpen, Chrome, BarChart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from './header';
 import TeacherSelectionModal from './TeacherSelection';
 import FloatingActionButton from './ActionButton';
 
-const HomePage = () => {
-  const [darkMode, setDarkMode] = useState(false);
+const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const navigate = useNavigate();
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  const navigateToMode = (mode) => {
+  const handleNavigateToMode = (mode) => {
     if (mode === 'class') {
       setShowTeacherModal(true);
     } else {
-      navigate(`/${mode}`);
+      navigateToMode(mode);
     }
   };
   const navigateToHome = () =>{
@@ -53,10 +48,10 @@ const HomePage = () => {
         </div>
         
         {/* Mode selection grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl w-full">
           {/* Public Mode Card */}
           <button 
-            onClick={() => navigateToMode('public')} 
+            onClick={() => handleNavigateToMode('public')} 
             className={`p-8 rounded-xl flex flex-col items-center text-center ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-lg transition-colors`}
           >
             <div className={`mb-4 p-4 rounded-full ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white`}>
@@ -68,7 +63,7 @@ const HomePage = () => {
           
           {/* Class Mode Card */}
           <button 
-            onClick={() => navigateToMode('class')} 
+            onClick={() => handleNavigateToMode('class')} 
             className={`p-8 rounded-xl flex flex-col items-center text-center ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-lg transition-colors`}
           >
             <div className={`mb-4 p-4 rounded-full ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white`}>
@@ -80,7 +75,7 @@ const HomePage = () => {
           
           {/* Plugin Mode Card */}
           <button 
-            onClick={() => navigateToMode('plugin')} 
+            onClick={() => handleNavigateToMode('plugin')} 
             className={`p-8 rounded-xl flex flex-col items-center text-center ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-lg transition-colors`}
           >
             <div className={`mb-4 p-4 rounded-full ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white`}>
@@ -89,17 +84,28 @@ const HomePage = () => {
             <h2 className="text-xl font-bold mb-2">Plugin Mode</h2>
             <p>Browser extension for ISL translation of online video content</p>
           </button>
+
+          {/* Analytics Dashboard Card */}
+          <button 
+            onClick={() => handleNavigateToMode('analytics')} 
+            className={`p-8 rounded-xl flex flex-col items-center text-center ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-lg transition-colors`}
+          >
+            <div className={`mb-4 p-4 rounded-full ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white`}>
+              <BarChart size={24} />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Analytics</h2>
+            <p>View usage statistics and performance metrics</p>
+          </button>
         </div>
       </div>
       
       {/* Floating Action Button for quick access */}
-      // In your HomePage or App component:
-<FloatingActionButton 
-  darkMode={darkMode}
-  navigateToMode={navigateToMode}
-  navigateToHome={navigateToHome}
-  //activeMode={activeMode}
-/>
+      <FloatingActionButton 
+        darkMode={darkMode}
+        navigateToMode={navigateToMode}
+        navigateToHome={navigateToHome}
+        activeMode={activeMode}
+      />
       
       {/* Teacher Selection Modal */}
       {showTeacherModal && (
