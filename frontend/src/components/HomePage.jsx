@@ -35,7 +35,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
 
   const handleNavigateToMode = (mode) => {
     if (mode === 'class') {
-      setShowTeacherModal(true);
+      navigate('/login'); // Navigate to the login page
     } else {
       navigateToMode(mode);
     }
