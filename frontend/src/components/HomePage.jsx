@@ -120,7 +120,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
             </h1>
             
             <p className={`text-xl md:text-2xl ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto mb-10 transition-all duration-1000 delay-300 ${isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-              Breaking communication barriers with AI-powered Indian Sign Language translation
+              Where every word meets its sign
             </p>
             
             <div className="flex justify-center gap-4">

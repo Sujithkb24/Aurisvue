@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import  React,{useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, Camera } from 'lucide-react';
-import FaceAuth from './FaceAuth'; // Import the FaceAuth component
-import TeacherSelectionModal from './TeacherSelectionModal'; // Import the TeacherSelectionModal component
+import FaceAuth from './FaceAuth';
+import TeacherSelectionModal from '../TeacherSelection';
 
-const Login = ({ darkMode }) => {
+const Login = ({ darkMode=true }) => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,9 +17,13 @@ const Login = ({ darkMode }) => {
   const [role, setRole] = useState(null); // Add role state
   const [faceDescriptor, setFaceDescriptor] = useState(null); // Add state for face descriptor
 
-  const { login, hasFaceAuthEnabled } = useAuth();
+  const auth = useAuth(); // Store the entire auth object
+  
+  // Now extract methods and properties from auth object with null checks
+  const login = auth?.login;
+  const hasFaceAuthEnabled = auth?.hasFaceAuthEnabled;
   const navigate = useNavigate();
-
+  console.log(darkMode)
   // Validate email format
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

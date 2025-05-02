@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React,{ useState, useEffect, useRef } from 'react';
 import { Settings, ChevronDown, ChevronUp, Smartphone, Tablet, Monitor, 
          PlayCircle, Download, X, Info, HelpCircle, CheckCircle } from 'lucide-react';
 import Header from '../header';

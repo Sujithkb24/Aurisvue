@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React,{ useEffect, useRef, useState } from 'react';
 import ISLModel from './ISL_model';
 
 // This component handles the connection between backend signals and the 3D model

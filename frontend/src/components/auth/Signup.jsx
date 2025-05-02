@@ -1,5 +1,5 @@
 // src/components/auth/Signup.jsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, CheckCircle, Camera, Search, Plus, School } from 'lucide-react';
@@ -27,7 +27,10 @@ const Signup = ({ darkMode }) => {
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const { register } = useAuth();
+  const auth = useAuth(); // Store the entire auth object
+  
+  // Now extract methods and properties from auth object with null checks
+  const register = auth?.register;
   const navigate = useNavigate();
   
   // Fetch schools when component mounts

@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import PublicMode from './components/modes/public';
+import Login from './components/auth/Login';
+import Signup from './components/auth/Signup'
 import ClassMode from './components/modes/class';
 import PluginMode from './components/modes/plugin';
 import PluginActivation from './components/plugin/activation';
@@ -12,6 +14,8 @@ const AppRouter = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
+        <Route path="/login" element={<Login />} />
+        <Route path='/signup' element={<Signup />} />
         <Route path="/public" element={<PublicMode />} />
         <Route path="/class/:teacherId?" element={<ClassMode />} />
         <Route path="/plugin" element={<PluginMode />} />

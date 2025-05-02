@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React,{useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import ISLViewer from '../ISL_viewer'; 
 import Header from '../header';

@@ -10,7 +10,7 @@ const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode =
             <ChevronLeft size={24} />
           </button>
         )}
-        <Volume2 className="text-blue-500 " size={24} />
+        <img src="/AurisVue_logo.png" alt="AurisVue Logo" style={{ height: '50px', width: 'auto' }} />
         <h1 className="text-xl font-bold">{title}</h1>
       </div>
       <div>
