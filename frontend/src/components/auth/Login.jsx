@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, Camera } from 'lucide-react';
 import FaceAuth from './FaceAuth'; // Import the FaceAuth component
+import TeacherSelectionModal from './TeacherSelectionModal'; // Import the TeacherSelectionModal component
 
 const Login = ({ darkMode }) => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -12,8 +13,11 @@ const Login = ({ darkMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [useFaceAuth, setUseFaceAuth] = useState(true); // Default to Face Authentication
   const [isEmailValid, setIsEmailValid] = useState(true);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [role, setRole] = useState(null); // Add role state
+  const [faceDescriptor, setFaceDescriptor] = useState(null); // Add state for face descriptor
 
-  const { login } = useAuth();
+  const { login, hasFaceAuthEnabled } = useAuth();
   const navigate = useNavigate();
 
   // Validate email format
@@ -22,11 +26,75 @@ const Login = ({ darkMode }) => {
     return emailRegex.test(email);
   };
 
+  // Check if the user has face auth enabled when they input their email
+  useEffect(() => {
+    const checkFaceAuth = async () => {
+      if (emailOrPhone && validateEmail(emailOrPhone)) {
+        try {
+          const hasFace = await hasFaceAuthEnabled(emailOrPhone);
+          if (hasFace) {
+            setUseFaceAuth(true);
+          }
+        } catch (err) {
+          console.error("Error checking face auth status:", err);
+        }
+      }
+    };
+
+    if (emailOrPhone && emailOrPhone.length > 5) {
+      checkFaceAuth();
+    }
+  }, [emailOrPhone, hasFaceAuthEnabled]);
+
   // Clear validation errors when switching auth methods
   useEffect(() => {
     setError('');
     setIsEmailValid(true);
+    setFaceDescriptor(null); // Clear face data when switching
   }, [useFaceAuth]);
+
+  // Handle face detection callback from FaceAuth component
+  const handleFaceDetected = (descriptor) => {
+    setFaceDescriptor(descriptor);
+    // Automatically submit the form when face is detected and verified
+    if (descriptor && emailOrPhone) {
+      handleSubmitWithFace(descriptor);
+    }
+  };
+
+  // Separate function to handle face login
+  const handleSubmitWithFace = async (descriptor) => {
+    if (loading) return;
+    
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Login with face authentication
+      const user = await login(emailOrPhone, null, descriptor);
+      
+      // Check user type and handle navigation accordingly
+      if (user && user.role) {
+        setRole(user.role);
+        
+        if (user.role === 'teacher') {
+          // If teacher, navigate directly to their class page
+          navigate(`/class/${user._id}`);
+        } else {
+          // If student, show teacher selection modal
+          setShowTeacherModal(true);
+        }
+      } else {
+        // Default to showing the teacher selection modal if user type is not available
+        setShowTeacherModal(true);
+      }
+    } catch (err) {
+      console.error('Face login error:', err);
+      setError(err.message || 'Face authentication failed. Please try again or use password.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,11 +118,37 @@ const Login = ({ darkMode }) => {
 
     try {
       setLoading(true);
+      
+      // Authenticate the user
+      let user;
       if (!useFaceAuth) {
         // Password Authentication
-        await login(emailOrPhone, password);
+        user = await login(emailOrPhone, password);
+      } else if (faceDescriptor) {
+        // Face Authentication with already captured descriptor
+        user = await login(emailOrPhone, null, faceDescriptor);
+      } else {
+        // Face auth selected but no face detected yet
+        setError('Please complete the face verification first');
+        setLoading(false);
+        return;
       }
-      navigate('/');
+      
+      // Check user type and handle navigation accordingly
+      if (user && user.role) {
+        setRole(user.role);
+        
+        if (user.role === 'teacher') {
+          // If teacher, navigate directly to their class page
+          navigate(`/class/${user._id}`);
+        } else {
+          // If student, show teacher selection modal
+          setShowTeacherModal(true);
+        }
+      } else {
+        // Default to showing the teacher selection modal if user type is not available
+        setShowTeacherModal(true);
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Failed to log in');
@@ -71,6 +165,15 @@ const Login = ({ darkMode }) => {
     setUseFaceAuth(!useFaceAuth);
     setPassword(''); // Clear password field when switching
     setEmailOrPhone(''); // Clear input field when switching
+    setFaceDescriptor(null); // Clear face data when switching
+  };
+  
+  const handleTeacherSelect = (teacher) => {
+    setShowTeacherModal(false);
+    // Handle the selected teacher
+    console.log('Selected teacher:', teacher);
+    // Navigate to dashboard/home after teacher selection
+    navigate(`/class/${teacherId}`);
   };
 
   return (
@@ -138,18 +241,22 @@ const Login = ({ darkMode }) => {
 
           {useFaceAuth && (
             <div>
-              <FaceAuth emailOrPhone={emailOrPhone} darkMode={darkMode} />
+              <FaceAuth 
+                emailOrPhone={emailOrPhone} 
+                darkMode={darkMode} 
+                onFaceDetected={handleFaceDetected}
+              />
             </div>
           )}
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (useFaceAuth && !faceDescriptor)}
             className={`w-full px-4 py-2 rounded-lg ${
               darkMode
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : 'bg-blue-500 hover:bg-blue-600 text-white'
-            } transition duration-200 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            } transition duration-200 ${loading || (useFaceAuth && !faceDescriptor) ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -174,6 +281,14 @@ const Login = ({ darkMode }) => {
           </p>
         </div>
       </div>
+      
+      {showTeacherModal && (
+        <TeacherSelectionModal 
+          darkMode={darkMode}
+          onClose={() => setShowTeacherModal(false)}
+          onSelect={handleTeacherSelect}
+        />
+      )}
     </div>
   );
 };

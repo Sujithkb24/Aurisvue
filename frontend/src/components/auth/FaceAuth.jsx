@@ -3,7 +3,12 @@ import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import { Camera } from 'lucide-react';
 
-const FaceAuth = ({ emailOrPhone, darkMode }) => {
+const FaceAuth = ({ 
+  emailOrPhone, 
+  darkMode, 
+  isSetup = false, //to differentiate login vs signup
+  onFaceDetected  //callback prop to send face data to parent
+}) => {
   const [faceDescriptor, setFaceDescriptor] = useState(null);
   const [statusMessage, setStatusMessage] = useState("Loading face model...");
   const [isScanning, setIsScanning] = useState(false);
@@ -125,6 +130,11 @@ const FaceAuth = ({ emailOrPhone, darkMode }) => {
             
             // Save face descriptor for login
             setFaceDescriptor(detection.descriptor);
+    
+            //Calling the callback with the face descriptor
+            if (onFaceDetected && detection.descriptor) {
+              onFaceDetected(detection.descriptor);
+            }
           } else {
             if (livenessResult.isBlinkDetected) {
               setStatusMessage("👁️ Blink detected! Completing verification...");
@@ -393,18 +403,18 @@ const FaceAuth = ({ emailOrPhone, darkMode }) => {
       </div>
       
       {!isScanning ? (
-        <button
-          onClick={startFaceScanning}
-          className={`flex items-center px-4 py-2 rounded-lg ${
-            darkMode
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          } transition duration-200`}
-          disabled={authInProgress || !emailOrPhone}
-        >
-          <Camera size={18} className="mr-2" />
-          Authenticate with Face
-        </button>
+         <button
+         onClick={startFaceScanning}
+         className={`flex items-center px-4 py-2 rounded-lg ${
+           darkMode
+             ? 'bg-blue-600 hover:bg-blue-700 text-white'
+             : 'bg-blue-500 hover:bg-blue-600 text-white'
+         } transition duration-200`}
+         disabled={authInProgress || !emailOrPhone}
+       >
+         <Camera size={18} className="mr-2" />
+         {isSetup ? 'Setup Face Authentication' : 'Authenticate with Face'}
+       </button>
       ) : (
         <button 
           onClick={stopFaceScanning}
@@ -445,13 +455,13 @@ const FaceAuth = ({ emailOrPhone, darkMode }) => {
       )}
       
       {livenessCheck.passed && (
-        <div className={`mt-2 ${darkMode ? "text-green-400" : "text-green-600"} text-xs flex items-center`}>
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-          Face authentication verified
-        </div>
-      )}
+      <div className={`mt-2 ${darkMode ? "text-green-400" : "text-green-600"} text-xs flex items-center`}>
+        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        {isSetup ? 'Face setup complete!' : 'Face authentication verified'}
+      </div>
+    )}
     </div>
   );
 };

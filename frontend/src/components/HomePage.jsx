@@ -22,7 +22,6 @@ import QuickAccessWidget from './plugin/access_widget';
 import SettingsPanel from './Settings';
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
-  const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const navigate = useNavigate();
@@ -39,11 +38,6 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
     } else {
       navigateToMode(mode);
     }
-  };
-  
-  const handleTeacherSelect = (teacherId) => {
-    setShowTeacherModal(false);
-    navigate(`/class/${teacherId}`);
   };
 
   // Card data for consistent styling and easier maintenance
@@ -245,14 +239,6 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
         activeMode={activeMode}
       />
       
-      {/* Teacher Selection Modal */}
-      {showTeacherModal && (
-        <TeacherSelectionModal 
-          darkMode={darkMode}
-          onClose={() => setShowTeacherModal(false)}
-          onSelect={handleTeacherSelect}
-        />
-      )}
     </div>
   );
 };
