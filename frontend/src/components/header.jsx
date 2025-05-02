@@ -1,4 +1,5 @@
 import { ChevronLeft, Volume2, Settings } from 'lucide-react';
+import React from 'react';
 
 const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode = true }) => {
   return (
@@ -9,7 +10,7 @@ const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode =
             <ChevronLeft size={24} />
           </button>
         )}
-        <Volume2 className="text-blue-500" size={24} />
+        <Volume2 className="text-blue-500 " size={24} />
         <h1 className="text-xl font-bold">{title}</h1>
       </div>
       <div>

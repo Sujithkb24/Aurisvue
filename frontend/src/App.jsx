@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import HomePage from './components/HomePage';
 import QuickAccessWidget from './components/plugin/access_widget';
 import SettingsPanel from './components/Settings';
-
+import React from 'react';
 const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,7 +87,7 @@ const App = () => {
   
   // Main app with widget when appropriate
   return (
-    <div className={darkMode ? "bg-gray-900 text-white min-h-screen" : "bg-gray-100 text-gray-900 min-h-screen"}>
+    <div className={darkMode ? "bg-gray-900  text-white min-h-screen" : "bg-gray-100 text-gray-900 min-h-screen"}>
       <HomePage
         darkMode={darkMode}
         toggleDarkMode={toggleDarkMode}
