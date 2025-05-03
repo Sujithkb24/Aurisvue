@@ -6,7 +6,6 @@ import PluginMode from './components/modes/plugin';
 import PluginActivation from './components/plugin/activation';
 import TeacherAnalyticsDashboard from './components/TeacherAnalytics';
 import React from 'react';
-
 const AppRouter = () => {
   return (
     <BrowserRouter>
