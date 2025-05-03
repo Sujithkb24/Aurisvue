@@ -12,7 +12,7 @@ connectDB();
 
 app.use(cors());
 app.use(express.json());
-app.use('/api/schools', require('./routes/schoolRoutes'));
+app.use('/api/schools', schoolRoutes);
 
 app.use('/api/auth', authRoutes);
 

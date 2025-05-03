@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-UserSchema.methods.updateLastLogin = function() {
+userSchema.methods.updateLastLogin = function() {
   this.lastLogin = Date.now();
   return this.save();
 };
