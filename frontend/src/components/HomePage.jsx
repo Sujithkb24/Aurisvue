@@ -22,7 +22,6 @@ import QuickAccessWidget from './plugin/access_widget';
 import SettingsPanel from './Settings';
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
-  const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const navigate = useNavigate();
@@ -35,15 +34,10 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
 
   const handleNavigateToMode = (mode) => {
     if (mode === 'class') {
-      setShowTeacherModal(true);
+      navigate('/login'); // Navigate to the login page
     } else {
       navigateToMode(mode);
     }
-  };
-  
-  const handleTeacherSelect = (teacherId) => {
-    setShowTeacherModal(false);
-    navigate(`/class/${teacherId}`);
   };
 
   // Card data for consistent styling and easier maintenance
@@ -126,7 +120,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
             </h1>
             
             <p className={`text-xl md:text-2xl ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto mb-10 transition-all duration-1000 delay-300 ${isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-              Breaking communication barriers with AI-powered Indian Sign Language translation
+              Where every word meets its sign
             </p>
             
             <div className="flex justify-center gap-4">
@@ -245,14 +239,6 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
         activeMode={activeMode}
       />
       
-      {/* Teacher Selection Modal */}
-      {showTeacherModal && (
-        <TeacherSelectionModal 
-          darkMode={darkMode}
-          onClose={() => setShowTeacherModal(false)}
-          onSelect={handleTeacherSelect}
-        />
-      )}
     </div>
   );
 };
