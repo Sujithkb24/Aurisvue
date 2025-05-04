@@ -31,6 +31,10 @@ const Signup = ({ darkMode }) => {
   
   // Now extract methods and properties from auth object with null checks
   const register = auth?.register;
+if (!register) {
+  console.error('Register function is not available');
+  return;
+}
   const navigate = useNavigate();
   
   // Fetch schools when component mounts
@@ -65,17 +69,24 @@ const Signup = ({ darkMode }) => {
     setFaceDescriptor(descriptor);
   };
   
-  const createNewSchool = async () => {
+  const createNewSchool = async (userToken) => {
     if (!newSchoolName.trim()) {
       setError('Please enter a school name');
       return null;
     }
     
     try {
-      const response = await axios.post('http://localhost:5000/api/schools', {
-        name: newSchoolName.trim(),
-        createdByEmail: email
-      });
+      const response = await axios.post(
+        'http://localhost:5000/api/schools', 
+        {
+          name: newSchoolName.trim(),
+          createdByEmail: email
+        },
+        {
+          headers: { Authorization: `Bearer ${userToken}` }
+        }
+      );
+      console.log('New school created:', response.data);
       
       if (response.data && response.data.id) {
         // Set the generated teacher code for display
@@ -126,31 +137,25 @@ const Signup = ({ darkMode }) => {
     
     // School validation based on role
     let schoolId = null;
+    let isValidTeacher = true;
     
-    if (role === 'teacher') {
-      if (isCreatingNewSchool) {
-        // Create a new school
-        const newSchool = await createNewSchool();
-        if (!newSchool) return; // Error already set in createNewSchool
-        schoolId = newSchool.id;
-      } else {
-        // Verify existing school's teacher code
-        if (!selectedSchool) {
-          return setError('Please select a school');
-        }
-        
-        if (!teacherCode) {
-          return setError('Please enter teacher code');
-        }
-        
-        const isValid = await verifyTeacherCode(selectedSchool, teacherCode);
-        if (!isValid) {
-          return setError('Invalid teacher code');
-        }
-        
-        schoolId = selectedSchool;
+    if (role === 'teacher' && !isCreatingNewSchool) {
+      // Verify existing school's teacher code for teachers
+      if (!selectedSchool) {
+        return setError('Please select a school');
       }
-    } else {
+      
+      if (!teacherCode) {
+        return setError('Please enter teacher code');
+      }
+      
+      isValidTeacher = await verifyTeacherCode(selectedSchool, teacherCode);
+      if (!isValidTeacher) {
+        return setError('Invalid teacher code');
+      }
+      
+      schoolId = selectedSchool;
+    } else if (role === 'student') {
       // Student validation
       if (!selectedSchool) {
         return setError('Please select your school');
@@ -162,29 +167,47 @@ const Signup = ({ darkMode }) => {
     try {
       setLoading(true);
       
-      // Register with appropriate method based on user choice
+      // First, register the user
+      let registrationResult;
+      
       if (setupFaceAuth) {
         // Register with face authentication
-        await register(
+        registrationResult = await register(
           email, 
           null, 
           role, 
           true, 
           faceDescriptor, 
-          schoolId
+          isCreatingNewSchool ? null : schoolId // Only include schoolId if joining existing school
         );
       } else {
         // Register with password
-        await register(
+        registrationResult = await register(
           email, 
           password, 
           role, 
           false, 
           null, 
-          schoolId
+          isCreatingNewSchool ? null : schoolId // Only include schoolId if joining existing school
         );
       }
       
+      // If creating a new school and user is successfully registered
+      if (role === 'teacher' && isCreatingNewSchool && registrationResult?.token) {
+        // Now create the school with the authenticated user
+        const newSchool = await createNewSchool(registrationResult.token);
+        
+        if (newSchool?._id) {
+          // Update the user with the new school ID
+          await axios.post(
+            'http://localhost:5000/api/auth/update-school', 
+            { schoolId: newSchool._id },
+            { headers: { Authorization: `Bearer ${registrationResult.token}` } }
+          );
+        }
+      }
+      
+      // Navigate to home page after all operations are complete
       navigate('/');
     } catch (err) {
       console.error('Registration error:', err);

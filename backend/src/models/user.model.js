@@ -8,9 +8,6 @@ const userSchema = new mongoose.Schema({
   schoolId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',
-    required: function () {
-      return this.role === 'student' || this.role === 'teacher';
-    }
   },
 
   useFaceAuth: {

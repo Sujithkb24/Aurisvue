@@ -38,6 +38,6 @@
     "postcss": "^8.5.3",
     "react-webcam": "^7.2.0",
     "tailwindcss": "^4.1.5",
-    "vite": "^6.3.1"
+    "vite": "^6.3.4"
   }
 }
