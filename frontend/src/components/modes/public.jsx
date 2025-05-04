@@ -2,7 +2,6 @@ import React,{useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import ISLViewer from '../ISL_viewer'; 
 import Header from '../header';
-import React from 'react';
 
 const PublicMode = ({ darkMode = true, onBack }) => {
   const [isMicActive, setIsMicActive] = useState(false);
