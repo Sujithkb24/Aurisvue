@@ -67,3 +67,29 @@ export const loginWithFace = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const checkFaceAuthEnabled = async (req, res) => {
+  try {
+    const { emailOrPhone } = req.query;
+
+    if (!emailOrPhone) {
+      return res.status(400).json({ message: 'Email or phone number is required' });
+    }
+
+    // Find the user by email or phone
+    const user = await User.findOne({
+      $or: [{ email: emailOrPhone }, { phone: emailOrPhone }]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if face authentication is enabled
+    const hasFaceAuth = !!user.faceDescriptor; // Assuming `faceDescriptor` is stored in the user model
+    res.json({ hasFaceAuth });
+  } catch (error) {
+    console.error('Error checking face authentication:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

@@ -201,9 +201,6 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
             </div>
             
             <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-600 inline-block">
-                <Settings size={24} />
-              </div>
               <h3 className="text-xl font-bold mb-3">Customization</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Personalized settings for speed, gestures, and learning preferences

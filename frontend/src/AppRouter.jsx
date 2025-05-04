@@ -13,7 +13,7 @@ import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 const AppRouter = () => {
   return (
     <BrowserRouter>
-      <AuthProvider> {/* Wrap the component tree with AuthProvider */}
+      <AuthProvider>
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/login" element={<Login />} />
@@ -23,7 +23,7 @@ const AppRouter = () => {
           <Route path="/plugin" element={<PluginMode />} />
           <Route path="/setup" element={<PluginActivation />} />
           <Route path="/analytics" element={<TeacherAnalyticsDashboard />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
         </Routes>
       </AuthProvider>
     </BrowserRouter>

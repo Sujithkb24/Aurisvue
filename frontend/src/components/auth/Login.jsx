@@ -14,7 +14,7 @@ const Login = ({ darkMode=true }) => {
   const [useFaceAuth, setUseFaceAuth] = useState(true); // Default to Face Authentication
   const [isEmailValid, setIsEmailValid] = useState(true);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
-  const [userRole, setUserRole] = useState(null); // Renamed role to userRole for clarity
+  const [role, setUserRole] = useState(null); 
   const [faceDescriptor, setFaceDescriptor] = useState(null); // Add state for face descriptor
 
   const auth = useAuth(); // Store the entire auth object
@@ -23,7 +23,6 @@ const Login = ({ darkMode=true }) => {
   const login = auth?.login;
   const hasFaceAuthEnabled = auth?.hasFaceAuthEnabled;
   const navigate = useNavigate();
-  console.log(darkMode)
   // Validate email format
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -103,26 +102,26 @@ const Login = ({ darkMode=true }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
+  
     if (!emailOrPhone) {
       return setError(`Please provide ${useFaceAuth ? 'an email or phone number' : 'an email address'}`);
     }
-
+  
     // For password auth, validate email format
     if (!useFaceAuth) {
       if (!validateEmail(emailOrPhone)) {
         setIsEmailValid(false);
         return setError('Please enter a valid email address for password authentication');
       }
-      
+  
       if (!password) {
         return setError('Please enter your password');
       }
     }
-
+  
     try {
       setLoading(true);
-      
+  
       // Authenticate the user
       let user;
       if (!useFaceAuth) {
@@ -137,21 +136,19 @@ const Login = ({ darkMode=true }) => {
         setLoading(false);
         return;
       }
-      
+  
       // Check user role and handle navigation accordingly
       if (user && user.role) {
         setUserRole(user.role);
-        
-        if (user.role === 'teacher') {
-          // If teacher, navigate directly to their class page
-          navigate(`/class/${user._id}`);
-        } else if (user.role === 'student') {
-          // Only show the teacher selection modal if the user is a student
-          setShowTeacherModal(true);
-        } else {
-          // Handle any other roles if needed
+  
+        // if (user.role === 'teacher') {
+        //   navigate(`/class/${user._id}`);
+        // } else if (user.role === 'student') {
+        //   setShowTeacherModal(true);
+        // } else {
+        //   // Handle any other roles if needed
           navigate('/dashboard'); // Default navigation
-        }
+
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -287,13 +284,19 @@ const Login = ({ darkMode=true }) => {
       </div>
       
       {/* Only show TeacherSelectionModal if userRole is student */}
-      {showTeacherModal && userRole === 'student' && (
-        <TeacherSelectionModal 
-          darkMode={darkMode}
-          onClose={() => setShowTeacherModal(false)}
-          onSelect={handleTeacherSelect}
-        />
-      )}
+      {/* {role === 'student' && selectedSchool && (
+        <button
+          type="button"
+          onClick={() => setShowTeacherModal(true)}
+          className={`w-full px-4 py-2 rounded-lg ${
+            darkMode
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+        >
+          Select Teacher
+        </button>
+      )} */}
     </div>
   );
 };

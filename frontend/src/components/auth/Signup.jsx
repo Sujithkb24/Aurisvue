@@ -6,7 +6,7 @@ import { Eye, EyeOff, AlertCircle, CheckCircle, Camera, Search, Plus, School } f
 import FaceAuth from './FaceAuth';
 import axios from 'axios';
 
-const Signup = ({ darkMode }) => {
+const Signup = ({ darkMode=true }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -397,8 +397,8 @@ if (!register) {
                   ) : filteredSchools.length > 0 ? (
                     filteredSchools.map(school => (
                       <div
-                        key={school.id}
-                        onClick={() => setSelectedSchool(school.id)}
+                        key={school._id}
+                        onClick={() => setSelectedSchool(school._id)}
                         className={`p-3 cursor-pointer hover:bg-opacity-80 ${
                           selectedSchool === school.id
                             ? (darkMode ? 'bg-blue-700' : 'bg-blue-100')
@@ -406,7 +406,7 @@ if (!register) {
                         } ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
                       >
                         <div className="flex items-center">
-                          {selectedSchool === school.id && (
+                          {selectedSchool === school._id && (
                             <CheckCircle size={16} className={`mr-2 ${darkMode ? 'text-blue-300' : 'text-blue-500'}`} />
                           )}
                           <span>{school.name}</span>

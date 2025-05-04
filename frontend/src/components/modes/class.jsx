@@ -5,6 +5,7 @@ import Header from '../header';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { useNavigate } from 'react-router-dom';
+import FloatingActionButton from '../ActionButton';
 import FeedbackComponent from '../Feedback';
 
 const ClassMode = ({ darkMode = true, onBack }) => {
@@ -912,6 +913,13 @@ const ClassMode = ({ darkMode = true, onBack }) => {
           </div>
         </div>
       </div>
+      {/* Floating Action Button for quick access */}
+      <FloatingActionButton 
+        darkMode={darkMode}
+        navigateToMode={navigateToMode}
+        navigateToHome={navigateToHome}
+        activeMode={activeMode}
+      />
     </div>
   );
 };

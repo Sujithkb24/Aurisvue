@@ -26,7 +26,8 @@ export const createSchool = async (req, res) => {
     const school = await School.create({
       name,
       createdBy: creator._id,
-      teacherCode
+      teacherCode,
+      teachers: [creator._id] // Add the creator to the teachers array
     });
 
     // Assign the creator as a teacher
@@ -48,10 +49,59 @@ export const createSchool = async (req, res) => {
   }
 };
 
+export const getSchoolTeachers = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+
+    // Find the school and populate the teachers array
+    const school = await School.findById(schoolId).populate('teachers', 'name email');
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+
+    // Respond with the list of teachers
+    res.json({
+      schoolName: school.name,
+      teachers: school.teachers.map((teacher) => ({
+        name: teacher.name,
+        email: teacher.email
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export const getAllSchools = async (req, res) => {
   try {
     const schools = await School.find({}, 'name _id');
     res.json(schools);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getSchoolInfo = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+
+    // Find the school and populate the teachers array
+    const school = await School.findById(schoolId).populate('teachers', 'name email');
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+
+    // Respond with school details
+    res.json({
+      _id: school._id,
+      name: school.name,
+      teacherCode: school.teacherCode,
+      createdBy: school.createdBy,
+      teachers: school.teachers.map((teacher) => ({
+        name: teacher.name,
+        email: teacher.email
+      }))
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
