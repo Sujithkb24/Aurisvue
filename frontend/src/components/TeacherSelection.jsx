@@ -1,4 +1,5 @@
 import { X, UserCheck } from 'lucide-react';
+import React from 'react';
 
 const TeacherSelectionModal = ({ darkMode, onClose, onSelect }) => {
   // Sample predefined teachers list

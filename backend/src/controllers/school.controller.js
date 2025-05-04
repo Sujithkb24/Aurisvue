@@ -1,17 +1,20 @@
 import crypto from 'crypto';
-import School from '../models/School.js';
-import User from '../models/User.js';
+import School from '../models/school.model.js';
+import User from '../models/user.model.js';
 
 export const createSchool = async (req, res) => {
   try {
-    const { name, creatorUid } = req.body;
+    console.log('Creating school:', req.body);
+    const { name, createdByEmail } = req.body;
 
+    // Check if the school already exists
     const existingSchool = await School.findOne({ name });
     if (existingSchool) {
       return res.status(400).json({ message: 'School already exists' });
     }
 
-    const creator = await User.findOne({ uid: creatorUid });
+    // Find the creator by email
+    const creator = await User.findOne({ email: createdByEmail });
     if (!creator) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -19,17 +22,19 @@ export const createSchool = async (req, res) => {
     // Generate secure teacher code
     const teacherCode = crypto.randomBytes(4).toString('hex'); // 8-char code
 
+    // Create the school
     const school = await School.create({
       name,
       createdBy: creator._id,
       teacherCode
     });
 
-    // Assign creator as teacher
+    // Assign the creator as a teacher
     creator.role = 'teacher';
     creator.schoolId = school._id;
     await creator.save();
 
+    // Respond with the created school details
     res.status(201).json({
       message: 'School created',
       school: {

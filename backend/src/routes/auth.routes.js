@@ -1,59 +1,139 @@
 import express from 'express';
 import User from '../models/user.model.js';
+import School from '../models/school.model.js';
 import verifyToken from '../middleware/auth.middleware.js';
+import { loginWithFace } from '../controllers/auth.controller.js';
+import admin from '../services/firebase.js';
 
 const router = express.Router();
 
-const compareFaceDescriptors = (storedDescriptor, loginDescriptor, threshold = 0.5) => {
-  if (!storedDescriptor || !loginDescriptor) return false;
-  if (storedDescriptor.length !== loginDescriptor.length) return false;
-  
-  // Calculate Euclidean distance between the descriptors
-  let distance = 0;
-  for (let i = 0; i < storedDescriptor.length; i++) {
-    distance += Math.pow(storedDescriptor[i] - loginDescriptor[i], 2);
-  }
-  distance = Math.sqrt(distance);
-  
-  console.log(`Face similarity distance: ${distance}`);
-  
-  // Lower distance means more similar faces
-  return distance < threshold;
-};
+router.post('/login-face', loginWithFace);
 
 // Create or update user on frontend registration
-router.post('/register', verifyToken, async (req, res) => {
-  const { role, schoolId, teacherCode } = req.body;
-  const { uid, email } = req.user;
-
+router.post('/register', async (req, res) => {
   try {
-    if (role === 'teacher') {
-      const school = await School.findById(schoolId);
-      if (!school || school.teacherCode !== teacherCode) {
-        return res.status(403).json({ error: 'Invalid teacher code or school ID' });
-      }
+    const { email, role, useFaceAuth, faceDescriptor, schoolId, uid } = req.body;
+
+    if (!email || !role || !uid) {
+      return res.status(400).json({ message: 'Email, role, and uid are required' });
     }
 
-    if (role === 'student') {
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    if (schoolId) {
       const school = await School.findById(schoolId);
       if (!school) {
-        return res.status(404).json({ error: 'Invalid school ID' });
+        return res.status(404).json({ message: 'School not found' });
       }
     }
 
-    let user = await User.findOne({ uid });
-    if (user) {
-      user.role = role;
-      user.schoolId = schoolId;
-      await user.save();
-    } else {
-      user = new User({ uid, email, role, schoolId });
-      await user.save();
-    }
+    user = new User({
+      uid,
+      email,
+      role,
+      useFaceAuth: useFaceAuth || false,
+      ...(faceDescriptor && { faceDescriptor }),
+      ...(schoolId && { schoolId })
+    });
 
-    res.json({ message: 'User registered/updated', role });
+    await user.save();
+
+    // 🔐 Generate Firebase custom token
+    const token = await admin.auth().createCustomToken(uid);
+    console.log('Generated Firebase token:', token);
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: {
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+        useFaceAuth: user.useFaceAuth
+      },
+      token
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Registration error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Register with face authentication (no Firebase uid yet)
+router.post('/register-face', async (req, res) => {
+  try {
+    const { email, role, faceDescriptor, schoolId } = req.body;
+    
+    // Validate input
+    if (!email || !role || !faceDescriptor) {
+      return res.status(400).json({ message: 'Email, role, and face descriptor are required' });
+    }
+    
+    // Check if the user already exists
+    let user = await User.findOne({ email });
+    
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    // Generate a unique identifier for the user (since there's no Firebase UID)
+    const uid = require('crypto').randomBytes(16).toString('hex');
+    
+    // Create new user
+    user = new User({
+      uid,
+      email,
+      role,
+      useFaceAuth: true,
+      faceDescriptor,
+      ...(schoolId && { schoolId })
+    });
+    
+    await user.save();
+    
+    // Generate a token for the client
+    const token = jwt.sign(
+      { uid, email, role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '1d' }
+    );
+    
+    // Return user data and token
+    res.status(201).json({
+      message: 'User registered with face authentication',
+      user: {
+        uid: userRecord.uid,
+        email,
+        role
+      },
+      token
+    });
+  }catch (error) {
+    console.error('Face registration error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+})
+
+router.post('/update-school', verifyToken, async (req, res) => {
+  const { schoolId } = req.body;
+  const { uid } = req.user;
+  
+  try {
+    const user = await User.findOne({ uid });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    user.schoolId = schoolId;
+    await user.save();
+    
+    res.json({ message: 'User school updated successfully' });
+  } catch (err) {
+    console.error('Error updating user school:', err);
+    res.status(500).json({ error: err.message || 'Failed to update user school' });
   }
 });
 

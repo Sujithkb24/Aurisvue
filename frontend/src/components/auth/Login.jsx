@@ -1,4 +1,4 @@
-import  React,{useState, useEffect } from 'react';
+import React, {useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, Camera } from 'lucide-react';
@@ -14,7 +14,7 @@ const Login = ({ darkMode=true }) => {
   const [useFaceAuth, setUseFaceAuth] = useState(true); // Default to Face Authentication
   const [isEmailValid, setIsEmailValid] = useState(true);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
-  const [role, setRole] = useState(null); // Add role state
+  const [userRole, setUserRole] = useState(null); // Renamed role to userRole for clarity
   const [faceDescriptor, setFaceDescriptor] = useState(null); // Add state for face descriptor
 
   const auth = useAuth(); // Store the entire auth object
@@ -31,24 +31,24 @@ const Login = ({ darkMode=true }) => {
   };
 
   // Check if the user has face auth enabled when they input their email
-  useEffect(() => {
-    const checkFaceAuth = async () => {
-      if (emailOrPhone && validateEmail(emailOrPhone)) {
-        try {
-          const hasFace = await hasFaceAuthEnabled(emailOrPhone);
-          if (hasFace) {
-            setUseFaceAuth(true);
-          }
-        } catch (err) {
-          console.error("Error checking face auth status:", err);
-        }
-      }
-    };
+  // useEffect(() => {
+  //   const checkFaceAuth = async () => {
+  //     if (emailOrPhone && validateEmail(emailOrPhone)) {
+  //       try {
+  //         const hasFace = await hasFaceAuthEnabled(emailOrPhone);
+  //         if (hasFace) {
+  //           setUseFaceAuth(true);
+  //         }
+  //       } catch (err) {
+  //         console.error("Error checking face auth status:", err);
+  //       }
+  //     }
+  //   };
 
-    if (emailOrPhone && emailOrPhone.length > 5) {
-      checkFaceAuth();
-    }
-  }, [emailOrPhone, hasFaceAuthEnabled]);
+  //   if (emailOrPhone && emailOrPhone.length > 5) {
+  //     checkFaceAuth();
+  //   }
+  // }, [emailOrPhone, hasFaceAuthEnabled]);
 
   // Clear validation errors when switching auth methods
   useEffect(() => {
@@ -77,20 +77,20 @@ const Login = ({ darkMode=true }) => {
       // Login with face authentication
       const user = await login(emailOrPhone, null, descriptor);
       
-      // Check user type and handle navigation accordingly
+      // Handle user navigation based on role
       if (user && user.role) {
-        setRole(user.role);
+        setUserRole(user.role);
         
         if (user.role === 'teacher') {
           // If teacher, navigate directly to their class page
           navigate(`/class/${user._id}`);
-        } else {
-          // If student, show teacher selection modal
+        } else if (user.role === 'student') {
+          // Only show the teacher selection modal if the user is a student
           setShowTeacherModal(true);
+        } else {
+          // Handle any other roles if needed
+          navigate('/dashboard'); // Default navigation
         }
-      } else {
-        // Default to showing the teacher selection modal if user type is not available
-        setShowTeacherModal(true);
       }
     } catch (err) {
       console.error('Face login error:', err);
@@ -138,20 +138,20 @@ const Login = ({ darkMode=true }) => {
         return;
       }
       
-      // Check user type and handle navigation accordingly
+      // Check user role and handle navigation accordingly
       if (user && user.role) {
-        setRole(user.role);
+        setUserRole(user.role);
         
         if (user.role === 'teacher') {
           // If teacher, navigate directly to their class page
           navigate(`/class/${user._id}`);
-        } else {
-          // If student, show teacher selection modal
+        } else if (user.role === 'student') {
+          // Only show the teacher selection modal if the user is a student
           setShowTeacherModal(true);
+        } else {
+          // Handle any other roles if needed
+          navigate('/dashboard'); // Default navigation
         }
-      } else {
-        // Default to showing the teacher selection modal if user type is not available
-        setShowTeacherModal(true);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -177,7 +177,7 @@ const Login = ({ darkMode=true }) => {
     // Handle the selected teacher
     console.log('Selected teacher:', teacher);
     // Navigate to dashboard/home after teacher selection
-    navigate(`/class/${teacherId}`);
+    navigate(`/class/${teacher._id}`); // Fixed: Changed teacherId to teacher._id
   };
 
   return (
@@ -286,7 +286,8 @@ const Login = ({ darkMode=true }) => {
         </div>
       </div>
       
-      {showTeacherModal && (
+      {/* Only show TeacherSelectionModal if userRole is student */}
+      {showTeacherModal && userRole === 'student' && (
         <TeacherSelectionModal 
           darkMode={darkMode}
           onClose={() => setShowTeacherModal(false)}

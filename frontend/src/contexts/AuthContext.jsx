@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.jsx
-import { createContext, useState, useEffect, useContext } from 'react';
+import React,{ createContext, useState, useEffect, useContext } from 'react';
 import AuthService from '../services/AuthService';
 
 const AuthContext = createContext();
@@ -30,11 +30,16 @@ export const AuthProvider = ({ children }) => {
   
   const register = async (email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) => {
     try {
-      const user = await AuthService.register(email, password, role, useFaceAuth, faceDescriptor, schoolId);
+      const result = await AuthService.register(email, password, role, useFaceAuth, faceDescriptor, schoolId);
+      
+      // Update state after successful registration
+      setCurrentUser(result.user);
       setUserRole(role);
       setUserSchool(schoolId);
-      return user;
+      
+      return result;
     } catch (error) {
+      console.error('Registration error in context:', error);
       throw error;
     }
   };
@@ -89,14 +94,14 @@ export const AuthProvider = ({ children }) => {
   };
   
   // Add a method to check if face auth is enabled for a user
-  const hasFaceAuthEnabled = async (emailOrPhone) => {
-    try {
-      return await AuthService.hasFaceAuthEnabled(emailOrPhone);
-    } catch (error) {
-      console.error("Error checking face auth status:", error);
-      return false;
-    }
-  };
+  // const hasFaceAuthEnabled = async (emailOrPhone) => {
+  //   try {
+  //     return await AuthService.hasFaceAuthEnabled(emailOrPhone);
+  //   } catch (error) {
+  //     console.error("Error checking face auth status:", error);
+  //     return false;
+  //   }
+  // };
   
   // Get school information
   const getSchoolInfo = async (schoolId) => {
@@ -146,7 +151,7 @@ export const AuthProvider = ({ children }) => {
     getToken,
     loading,
     updateFaceDescriptor,
-    hasFaceAuthEnabled,
+    //hasFaceAuthEnabled,
     getSchoolInfo,
     getSchools, 
     createSchool,

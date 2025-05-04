@@ -27,52 +27,70 @@ const auth = getAuth(app);
 class AuthService {
   // Register with email and password or face auth
   async register(email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) {
-    let user;
-    
-    if (useFaceAuth && faceDescriptor) {
-      // Direct registration with face auth - call backend API
-      const response = await axios.post(`${API_URL}/auth/register`, {
-        email,
-        role,
-        faceDescriptor: Array.from(faceDescriptor), // Convert to regular array for JSON
-        useFaceAuth: true,
-        schoolId
-      });
+    try {
+      let userData = null;
+      let token = null;
       
-      if (response.data && response.data.user) {
-        user = response.data.user;
+      if (useFaceAuth && faceDescriptor) {
+        // Registration with face authentication
+        const response = await axios.post(`${API_URL}/auth/register-face`, {
+          email,
+          role,
+          faceDescriptor: Array.from(faceDescriptor), // Convert to regular array for JSON
+          useFaceAuth: true,
+          schoolId
+        });
         
-        // Save user data in local storage for persistence
-        localStorage.setItem('auth_user', JSON.stringify(user));
-        localStorage.setItem(`user_role_${user.uid}`, role);
-        localStorage.setItem(`user_school_${user.uid}`, schoolId);
-        localStorage.setItem(`face_auth_${user.uid}`, 'true');
-      } else {
-        throw new Error('Registration failed');
-      }
-    } else {
-      // Traditional Firebase auth registration
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      user = userCredential.user;
-      
-      // Store user role and school in localStorage
-      localStorage.setItem(`user_role_${user.uid}`, role);
-      localStorage.setItem(`user_school_${user.uid}`, schoolId);
-      
-      // Update backend
-      await axios.post(`${API_URL}/auth/register`, {
-        uid: user.uid,
-        email: user.email,
-        role,
-        schoolId
-      }, {
-        headers: {
-          Authorization: `Bearer ${await user.getIdToken()}`
+        if (response.data && response.data.user) {
+          userData = response.data.user;
+          token = response.data.token;
+          
+          // Save auth data in local storage
+          localStorage.setItem('auth_user', JSON.stringify(userData));
+          localStorage.setItem('auth_token', token);
+          localStorage.setItem(`user_role_${userData.uid}`, role);
+          
+          if (schoolId) {
+            localStorage.setItem(`user_school_${userData.uid}`, schoolId);
+          }
+          
+          localStorage.setItem(`face_auth_${userData.uid}`, 'true');
+        } else {
+          throw new Error('Registration failed');
         }
-      });
+      } else {
+        // Traditional Firebase auth registration
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        userData = userCredential.user;
+        token = await userData.getIdToken();
+        
+        // Store auth data in localStorage
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem(`user_role_${userData.uid}`, role);
+        
+        if (schoolId) {
+          localStorage.setItem(`user_school_${userData.uid}`, schoolId);
+        }
+        
+        // Update backend with user data
+        await axios.post(`${API_URL}/auth/register`, {
+          uid: userData.uid,
+          email: userData.email,
+          role,
+          schoolId
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      }
+      
+      return { user: userData, token };
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
     }
-    
-    return user;
   }
   
   // Login with email/password or face descriptor
@@ -132,6 +150,30 @@ class AuthService {
     
     return user;
   }
+
+  // Get the school associated with the current user
+async getUserSchool() {
+  const user = this.getCurrentUser();
+
+  if (!user) {
+    throw new Error('No authenticated user found');
+  }
+
+  // Check local storage for the school ID
+  const schoolId = localStorage.getItem(`user_school_${user.uid}`);
+  if (schoolId) {
+    try {
+      // Fetch school information from the backend
+      const response = await axios.get(`${API_URL}/schools/${schoolId}`);
+      return response.data; // Return the school details
+    } catch (error) {
+      console.error('Error fetching school information:', error);
+      throw new Error('Failed to fetch school information');
+    }
+  }
+
+  console.warn('No school associated with the current user');
+}
   
   // Logout
   async logout() {
@@ -294,18 +336,18 @@ async verifyTeacherCode(schoolId, teacherCode) {
   }
   
   // Check if face auth is enabled for a user
-  async hasFaceAuthEnabled(emailOrPhone) {
-    try {
-      const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
-        params: { emailOrPhone }
-      });
+  // async hasFaceAuthEnabled(emailOrPhone) {
+  //   try {
+  //     const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
+  //       params: { emailOrPhone }
+  //     });
       
-      return response.data && response.data.hasFaceAuth === true;
-    } catch (error) {
-      console.error("Error checking face auth status:", error);
-      return false;
-    }
-  }
+  //     return response.data && response.data.hasFaceAuth === true;
+  //   } catch (error) {
+  //     console.error("Error checking face auth status:", error);
+  //     return false;
+  //   }
+  // }
   
   // Listen for auth state changes - handles both Firebase and face auth
   onAuthStateChanged(callback) {
