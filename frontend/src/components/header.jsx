@@ -1,4 +1,4 @@
-import { ChevronLeft, Volume2, Settings } from 'lucide-react';
+import { ChevronLeft, Volume2 } from 'lucide-react';
 import React from 'react';
 
 const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode = true }) => {
@@ -14,9 +14,7 @@ const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode =
         <h1 className="text-xl font-bold">{title}</h1>
       </div>
       <div>
-        <button className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}>
-          <Settings size={20} />
-        </button>
+      
       </div>
     </header>
   );

@@ -116,6 +116,7 @@ router.post('/register-face', async (req, res) => {
   }
 })
 
+router.get('/check-face-auth', checkFaceAuthEnabled);
 router.post('/update-school', verifyToken, async (req, res) => {
   const { schoolId } = req.body;
   const { uid } = req.user;
@@ -137,13 +138,16 @@ router.post('/update-school', verifyToken, async (req, res) => {
   }
 });
 
-// Get user role by token
-router.get('/role', verifyToken, async (req, res) => {
-  const { uid } = req.user;
+router.get('/user-info/:uid', verifyToken, async (req, res) => {
+  const { uid } = req.params;
   try {
     const user = await User.findOne({ uid });
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ role: user.role });
+
+    res.json({
+      role: user.role,
+      schoolId: user.schoolId || null 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

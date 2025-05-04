@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // Assuming this is the correct path
+import { useAuth } from '../contexts/AuthContext';
 import { 
   ResponsiveContainer, 
   LineChart, 

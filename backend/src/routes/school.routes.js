@@ -1,6 +1,6 @@
 import express from 'express';
 import School from '../models/school.model.js';
-import { createSchool, getAllSchools } from '../controllers/school.controller.js';
+import { createSchool, getAllSchools, getSchoolTeachers, getSchoolInfo } from '../controllers/school.controller.js';
 
 const router = express.Router();
 
@@ -10,7 +10,11 @@ router.post('/', createSchool);
 // Get all schools (for dropdown)
 router.get('/', getAllSchools);
 
-router.post('/schools/verify-code', async (req, res) => {
+router.get('/:schoolId/teachers', getSchoolTeachers);
+
+router.get('/:schoolId', getSchoolInfo);
+
+router.post('/verify-code', async (req, res) => {
     const { schoolId, teacherCode } = req.body;
     
     try {

@@ -1,14 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, MessageSquare, ChevronUp, ChevronDown, Pause, Play, RefreshCcw, Clock, Share2, Video, Save, BarChart2 } from 'lucide-react';
+import { 
+  Mic, MicOff, MessageSquare, ChevronUp, ChevronDown, Pause, Play, 
+  RefreshCcw, Clock, Share2, Video, Save, BarChart2, Hand, Users,
+  VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle
+} from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import Header from '../header';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import FloatingActionButton from '../ActionButton';
 import FeedbackComponent from '../Feedback';
 
-const ClassMode = ({ darkMode = true, onBack }) => {
+const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
   const navigate = useNavigate();
+  const { teacherId } = useParams();
   const { currentUser, userRole, getToken } = useAuth();
   const { socket } = useSocket();
   
@@ -37,11 +43,33 @@ const ClassMode = ({ darkMode = true, onBack }) => {
   // State for student feedback
   const [understanding, setUnderstanding] = useState(null);
   
+  // State for video/accessibility features
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [handRaised, setHandRaised] = useState(false);
+  const [showStudentsList, setShowStudentsList] = useState(false);
+  const [activeStudents, setActiveStudents] = useState([]);
+  const [showHelpPanel, setShowHelpPanel] = useState(false);
+  
   // Refs
   const recognitionRef = useRef(null);
   const sessionTimeRef = useRef(0);
   const sessionTimerRef = useRef(null);
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
   
+  // Primary UI colors based on role
+  const primaryColor = isTeacher ? 
+    (darkMode ? 'bg-purple-600' : 'bg-purple-500') : 
+    (darkMode ? 'bg-blue-600' : 'bg-blue-500');
+    
+  const primaryHoverColor = isTeacher ? 
+    (darkMode ? 'hover:bg-purple-700' : 'hover:bg-purple-600') : 
+    (darkMode ? 'hover:bg-blue-700' : 'hover:bg-blue-600');
+    
+  const primaryTextColor = isTeacher ? 
+    (darkMode ? 'text-purple-400' : 'text-purple-600') : 
+    (darkMode ? 'text-blue-400' : 'text-blue-600');
+
   // Check if user is authorized and set role
   useEffect(() => {
     if (!currentUser) {
@@ -60,6 +88,14 @@ const ClassMode = ({ darkMode = true, onBack }) => {
         setShowJoinModal(true);
       }
     }
+    
+    // Simulate fetching active students (for demonstration)
+    setActiveStudents([
+      { id: "user1", name: "Alex Johnson", handRaised: true },
+      { id: "user2", name: "Jamie Lee", handRaised: false },
+      { id: "user3", name: "Morgan Chen", handRaised: true },
+      { id: "user4", name: "Taylor Smith", handRaised: false },
+    ]);
   }, [currentUser, userRole, navigate]);
   
   // Set up socket events
@@ -89,6 +125,15 @@ const ClassMode = ({ darkMode = true, onBack }) => {
         setSessionSpeed(update.value);
       } else if (update.type === 'ended') {
         handleSessionEnded();
+      } else if (update.type === 'hand_raised') {
+        // Update students list with hand raised status
+        setActiveStudents(prev => 
+          prev.map(student => 
+            student.id === update.userId 
+              ? { ...student, handRaised: update.value } 
+              : student
+          )
+        );
       }
     });
     
@@ -190,6 +235,9 @@ const ClassMode = ({ darkMode = true, onBack }) => {
       if (sessionTimerRef.current) {
         clearInterval(sessionTimerRef.current);
       }
+      
+      // Stop camera if active
+      stopCamera();
     };
   }, [isTeacher, isPaused, socket, classSession]);
   
@@ -267,8 +315,8 @@ const ClassMode = ({ darkMode = true, onBack }) => {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: "New Class Session",
-          description: "ISL learning session"
+          title: "New ISL Learning Session",
+          description: "Interactive sign language learning session"
         })
       });
       
@@ -510,12 +558,83 @@ const ClassMode = ({ darkMode = true, onBack }) => {
       stopMic();
     }
     
+    // Stop camera if active
+    stopCamera();
+    
     // Clear session data
     setClassSession(null);
     setClassCode('');
     
     // Show summary or redirect to dashboard
     navigate('/dashboard');
+  };
+  
+  // Toggle hand raise (student only)
+  const toggleHand = () => {
+    if (userRole !== 'student') return;
+    
+    const newHandState = !handRaised;
+    setHandRaised(newHandState);
+    
+    // Notify teacher about hand raised status
+    if (socket && classSession) {
+      socket.emit('session_update', {
+        type: 'hand_raised',
+        value: newHandState,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        sessionId: classSession.id
+      });
+    }
+  };
+  
+  // Toggle video capture functionality
+  const toggleVideo = async () => {
+    if (videoEnabled) {
+      stopCamera();
+    } else {
+      startCamera();
+    }
+  };
+  
+  // Start camera for video capture
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Store stream reference for cleanup
+      mediaStreamRef.current = stream;
+      
+      // Attach stream to video element if available
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      setVideoEnabled(true);
+      
+      // In the future, this would connect to ISL recognition service
+      console.log("Video capture started - no ISL recognition implemented yet");
+      
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+      setError("Unable to access camera. Please check permissions.");
+    }
+  };
+  
+  // Stop camera
+  const stopCamera = () => {
+    // Stop all tracks in the media stream
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    
+    // Clear video source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    setVideoEnabled(false);
   };
   
   // Toggle history panel
@@ -534,7 +653,7 @@ const ClassMode = ({ darkMode = true, onBack }) => {
     
     const newMessage = {
       sender: currentUser.id,
-      senderName: currentUser.name,
+      senderName: currentUser.name || currentUser.displayName,
       senderRole: userRole,
       text: message,
       timestamp: new Date().toISOString(),
@@ -576,7 +695,7 @@ const ClassMode = ({ darkMode = true, onBack }) => {
     navigator.clipboard.writeText(classCode)
       .then(() => {
         // You could show a notification here
-        console.log('Class code copied to clipboard');
+        alert('Class code copied to clipboard: ' + classCode);
       })
       .catch(err => {
         console.error('Failed to copy class code:', err);
@@ -603,7 +722,7 @@ const ClassMode = ({ darkMode = true, onBack }) => {
       
       if (response.ok) {
         // Show success message
-        console.log('Session saved successfully');
+        alert('Session saved successfully');
       }
     } catch (error) {
       console.error("Error saving session:", error);
@@ -617,7 +736,12 @@ const ClassMode = ({ darkMode = true, onBack }) => {
     return (
       <div className={`fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50`}>
         <div className={`p-6 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} w-full max-w-md`}>
-          <h2 className="text-xl font-bold mb-4">Join Class</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Join ISL Class</h2>
+            <button onClick={() => setShowJoinModal(false)} className="p-1 rounded-full hover:bg-gray-700">
+              <X size={20} />
+            </button>
+          </div>
           
           {error && (
             <div className={`p-3 mb-4 rounded ${darkMode ? 'bg-red-900' : 'bg-red-100'} ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
@@ -637,7 +761,7 @@ const ClassMode = ({ darkMode = true, onBack }) => {
           
           <div className="flex justify-end space-x-3">
             <button
-              onClick={onBack}
+              onClick={onBack || goToDashboard}
               className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
             >
               Cancel
@@ -645,10 +769,60 @@ const ClassMode = ({ darkMode = true, onBack }) => {
             <button
               onClick={joinClassSession}
               disabled={isLoading || !classCode.trim()}
-              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white ${(isLoading || !classCode.trim()) && 'opacity-50 cursor-not-allowed'}`}
+              className={`px-4 py-2 rounded-lg ${primaryColor} ${primaryHoverColor} text-white ${(isLoading || !classCode.trim()) && 'opacity-50 cursor-not-allowed'}`}
             >
               {isLoading ? 'Joining...' : 'Join Class'}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render help panel
+  const renderHelpPanel = () => {
+    if (!showHelpPanel) return null;
+    
+    return (
+      <div className={`fixed inset-y-0 right-0 w-80 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg p-4 z-40 overflow-y-auto transform transition-transform duration-300`}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Help & Tips</h2>
+          <button onClick={() => setShowHelpPanel(false)} className="p-1 rounded-full hover:bg-gray-700">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-bold mb-2">For Teachers</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Click "Start Teaching" to begin the class session</li>
+              <li>Use the pause button to take breaks</li>
+              <li>Adjust speed to help students follow along</li>
+              <li>Monitor student questions in the chat</li>
+              <li>Save the session for future reference</li>
+            </ul>
+          </div>
+          
+          <div>
+            <h3 className="font-bold mb-2">For Students</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Use "Raise Hand" to signal questions</li>
+              <li>Toggle video to practice signs</li>
+              <li>Check transcript history if you missed something</li>
+              <li>Use the feedback panel if you're having trouble</li>
+              <li>Ask questions in the chat for clarification</li>
+            </ul>
+          </div>
+          
+          <div>
+            <h3 className="font-bold mb-2">Shortcuts</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="font-medium">Space</div><div>Toggle pause</div>
+              <div className="font-medium">M</div><div>Toggle mic (teachers)</div>
+              <div className="font-medium">V</div><div>Toggle video</div>
+              <div className="font-medium">H</div><div>Raise/lower hand</div>
+            </div>
           </div>
         </div>
       </div>
@@ -683,237 +857,379 @@ const ClassMode = ({ darkMode = true, onBack }) => {
   
   return (
     <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
-      <Header 
-        title={`Class Mode - ${isTeacher ? 'Teacher' : 'Student'}`} 
-        showBackButton={true} 
-        onBack={onBack} 
-        darkMode={darkMode} 
-      />
-      
-      {renderJoinModal()}
-      
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* 3D Model View */}
-        <div className="w-full md:w-2/3 h-1/2 md:h-full relative">
-          <ISLViewer 
-            darkMode={darkMode} 
-            mode="class" 
-            speechInput={detectedSpeech}
-            isListening={isMicActive}
-            playbackSpeed={sessionSpeed}
-          />
-          
-          {/* Current transcript overlay */}
-          {detectedSpeech && (
-            <div className={`absolute bottom-4 left-4 right-4 p-3 rounded-lg bg-opacity-75 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
-              <p className="text-center">{detectedSpeech}</p>
-            </div>
-          )}
-          
-          {/* Student feedback component */}
-{!isTeacher && classSession && (
-  <FeedbackComponent 
-  darkMode={darkMode}
-  currentUser={currentUser}
-  classSession={classSession}
-  detectedSpeech={detectedSpeech}
-  setUnderstanding={setUnderstanding}
-  understanding={understanding}
-/>
-)}
-        </div>
-        
-        {/* Class Interface */}
-        <div className={`w-full md:w-1/3 h-1/2 md:h-full flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <div className={`p-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="font-bold">{classSession?.title || "Start a Class"}</h2>
-              
-              <button
-                onClick={goToDashboard}
-                className={`px-3 py-1 rounded-lg text-sm ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white flex items-center space-x-1`}
-              >
-                <BarChart2 size={16} />
-                <span>Dashboard</span>
-              </button>
-              {isTeacher && (
-      <button
-        onClick={() => navigate('/analytics')}
-        className={`px-3 py-1 rounded-lg text-sm ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white flex items-center space-x-1`}
-      >
-        <BarChart2 size={16} />
-        <span>View Analytics</span>
-      </button>
-    )}
-            </div>
-            
-            {classSession && (
-              <div className="flex items-center text-sm mb-2">
-                <Clock size={16} className="mr-1" />
-                <span className="mr-2">Session time: {formatTime(sessionTimeRef.current)}</span>
-                
-                {isTeacher && (
-                  <div className="flex items-center ml-auto">
-                    <span className="mr-2">Class code: {classCode}</span>
-                    <button
-                      onClick={shareClassCode}
-                      className={`p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                    >
-                      <Share2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <div className="flex flex-wrap gap-2">
-              {isTeacher && (
-                <>
-                  <button 
-                    className={`px-4 py-2 rounded-lg ${isMicActive 
-                      ? (darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600') 
-                      : (darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600')} text-white flex items-center space-x-2`}
-                    onClick={isMicActive ? stopMic : startMic}
-                  >
-                    {isMicActive ? <MicOff size={18} /> : <Mic size={18} />}
-                    <span>{isMicActive ? "Stop Teaching" : "Start Teaching"}</span>
-                  </button>
-                  
-                  {/* Show pause/play button only when mic is active */}
-                  {isMicActive && (
-                    <button
-                      className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-yellow-500 hover:bg-yellow-600'} text-white flex items-center space-x-2`}
-                      onClick={togglePause}
-                    >
-                      {isPaused ? <Play size={18} /> : <Pause size={18} />}
-                      <span>{isPaused ? "Resume" : "Pause"}</span>
-                    </button>
-                  )}
-                  
-                  {/* Speed control for teacher */}
-                  {isMicActive && (
-                    <select
-                      value={sessionSpeed}
-                      onChange={(e) => changeSpeed(parseFloat(e.target.value))}
-                      className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}
-                    >
-                      <option value="0.5">0.5x Speed</option>
-                      <option value="1">Normal Speed</option>
-                      <option value="1.5">1.5x Speed</option>
-                    </select>
-                  )}
-                  
-                  {classSession && (
-                    <>
-                      <button
-                        className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} text-white flex items-center space-x-2`}
-                        onClick={saveSessionRecording}
-                      >
-                        <Save size={18} />
-                        <span>Save</span>
-                      </button>
-                      
-                      <button
-                        className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-500 hover:bg-purple-600'} text-white flex items-center space-x-2`}
-                        onClick={endSession}
-                      >
-                        <Video size={18} />
-                        <span>End Session</span>
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
+      {/* Custom Header */}
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md p-4`}>
+        <div className="container mx-auto flex justify-between items-center">
+          <div className="flex items-center">
+            <button 
+              onClick={onBack || goToDashboard}
+              className={`p-2 rounded-full mr-3 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold">
+                {isTeacher ? 'ISL Teaching Mode' : 'ISL Learning Session'}
+              </h1>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {isTeacher 
+                  ? classSession ? `Class Code: ${classCode}` : 'Start teaching to generate class code'
+                  : classSession ? 'Connected to live session' : 'Please join a class session'}
+              </p>
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* Toggle for transcript history */}
-            <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            {isTeacher && classSession && (
               <button 
-                onClick={toggleHistory}
-                className="flex items-center space-x-1 text-sm"
+                onClick={shareClassCode}
+                className={`flex items-center px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
               >
-                {showHistory ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                <span>Teaching History</span>
+                <Share2 size={16} className="mr-2" />
+                <span className="hidden sm:inline">Share Code</span>
               </button>
-              
-              {transcriptHistory.length > 0 && (
-                <button 
-                  onClick={clearHistory}
-                  className="text-sm text-red-500 hover:text-red-600"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            
-            {/* Transcript history panel */}
-            {showHistory && (
-              <div className={`mb-4 max-h-32 overflow-y-auto rounded-lg p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                {transcriptHistory.length > 0 ? (
-                  <ul className="space-y-2">
-                    {transcriptHistory.map((item, index) => (
-                      <li key={index} className="text-sm border-b border-gray-600 pb-1 last:border-b-0">
-                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{item.timestamp}</span>
-                        <p>{item.text}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-center text-sm text-gray-500">No history yet</p>
-                )}
-              </div>
             )}
             
-            <h3 className="font-medium mb-2 mt-4">Class Chat</h3>
-            <div className="space-y-3">
-              {messages.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg ${msg.senderRole === 'student' 
-                    ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-100') 
-                    : (darkMode ? 'bg-gray-700' : 'bg-gray-200')} ${
-                      msg.sender === currentUser?.id ? 'ml-6' : 'mr-6'
-                    }`}
-                >
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-sm font-medium">
-                      {msg.sender === currentUser?.id ? 'You' : msg.senderName || (msg.senderRole === 'teacher' ? 'Teacher' : 'Student')}
-                    </p>
-                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {typeof msg.timestamp === 'string' ? msg.timestamp : new Date(msg.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <p>{msg.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="p-4 border-t border-gray-700">
-            <div className="flex space-x-2">
-              <input 
-                type="text" 
-                value={message} 
-                onChange={(e) => setMessage(e.target.value)} 
-                onKeyPress={handleKeyPress}
-                placeholder="Ask a question..." 
-                className={`flex-1 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              />
-              <button 
-                onClick={sendMessage} 
-                disabled={!message.trim() || !classSession}
-                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white ${(!message.trim() || !classSession) && 'opacity-50 cursor-not-allowed'}`}
-              >
-                <MessageSquare size={18} />
-              </button>
-            </div>
+            <button 
+              onClick={() => setShowStudentsList(!showStudentsList)}
+              className={`flex items-center px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              <Users size={16} className="mr-2" />
+              <span className="hidden sm:inline">Students</span>
+              {activeStudents.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${primaryColor} text-white`}>
+                  {activeStudents.length}
+                </span>
+              )}
+            </button>
+            
+            <button 
+              onClick={() => setShowHelpPanel(!showHelpPanel)}
+              className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+            >
+              <HelpCircle size={20} />
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main teaching/learning area */}
+        <div className="flex-1 flex flex-col">
+          {/* ISL Visualization and Speech Recognition Area */}
+          <div className={`flex-1 p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} flex flex-col md:flex-row gap-4`}>
+            {/* Left side: ISL Visualization */}
+            <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
+              <div className="p-4 border-b border-gray-700">
+                <h2 className="text-lg font-semibold">ISL Visualization</h2>
+              </div>
+              
+              <div className="flex-1 p-4 flex items-center justify-center">
+                <ISLViewer 
+                  text={detectedSpeech}
+                  speed={sessionSpeed}
+                  paused={isPaused}
+                />
+              </div>
+              
+              {/* Speech detection display */}
+              <div className={`p-4 ${darkMode ? 'bg-gray-750' : 'bg-gray-50'} rounded-b-xl`}>
+                <p className="text-sm font-medium mb-1">
+                  {isTeacher ? 'Your Speech' : 'Teacher\'s Speech'}:
+                </p>
+                <div className={`p-3 rounded-lg min-h-12 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  {detectedSpeech || 'No speech detected...'}
+                </div>
+              </div>
+            </div>
+            
+            {/* Right side: Video Capture (for ISL practice) */}
+            <div className={`md:w-96 w-full rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
+              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Video Capture</h2>
+                <button 
+                  onClick={toggleVideo}
+                  className={`px-3 py-1 rounded-lg text-sm ${videoEnabled ? 'bg-red-500 hover:bg-red-600' : `${primaryColor} ${primaryHoverColor}`} text-white`}
+                >
+                  {videoEnabled ? 'Stop Camera' : 'Start Camera'}
+                </button>
+              </div>
+              
+              <div className="flex-1 p-4 flex items-center justify-center bg-black bg-opacity-20 rounded-lg m-4">
+                {videoEnabled ? (
+                  <video 
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="max-h-full rounded-lg"
+                  />
+                ) : (
+                  <div className="text-center text-gray-400">
+                    <VideoIcon size={48} className="mx-auto mb-2 opacity-40" />
+                    <p>{isTeacher ? 'Enable camera to demonstrate signs' : 'Enable camera to practice signs'}</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Student feedback component (only for students) */}
+              {!isTeacher && (
+                <div className="p-4 border-t border-gray-700">
+                  <FeedbackComponent
+                    currentTranscript={detectedSpeech}
+                    sessionId={classSession?.id}
+                    socket={socket}
+                    darkMode={darkMode}
+                    primaryColor={primaryColor}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Controls and transcript section */}
+          <div className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            {/* Teaching/Learning controls */}
+            <div className="flex justify-between items-center mb-4">
+              {/* Left side controls */}
+              <div className="flex items-center space-x-3">
+                {isTeacher ? (
+                  <button
+                    onClick={isMicActive ? stopMic : startMic}
+                    className={`px-4 py-2 rounded-lg flex items-center ${
+                      isMicActive 
+                        ? 'bg-red-500 hover:bg-red-600 text-white' 
+                        : `${primaryColor} ${primaryHoverColor} text-white`
+                    }`}
+                  >
+                    {isMicActive ? (
+                      <>
+                        <MicOff size={16} className="mr-2" />
+                        <span>Stop Teaching</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic size={16} className="mr-2" />
+                        <span>Start Teaching</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={toggleHand}
+                    className={`px-4 py-2 rounded-lg flex items-center ${
+                      handRaised
+                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                        : `${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`
+                    }`}
+                  >
+                    <Hand size={16} className="mr-2" />
+                    <span>{handRaised ? 'Lower Hand' : 'Raise Hand'}</span>
+                  </button>
+                )}
+                
+                {/* Play/Pause button */}
+                {(isTeacher || isMicActive) && (
+                  <button
+                    onClick={togglePause}
+                    className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                  >
+                    {isPaused ? <Play size={18} /> : <Pause size={18} />}
+                  </button>
+                )}
+                
+                {/* Speed control (teacher only) */}
+                {isTeacher && (
+                  <div className="flex items-center">
+                    <span className="text-sm mx-2">Speed:</span>
+                    <select
+                      value={sessionSpeed}
+                      onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+                      className={`rounded-lg px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}
+                    >
+                      <option value="0.5">0.5x</option>
+                      <option value="0.75">0.75x</option>
+                      <option value="1">1x</option>
+                      <option value="1.25">1.25x</option>
+                      <option value="1.5">1.5x</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              
+              {/* Right side controls */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={toggleHistory}
+                  className={`p-3 rounded-lg flex items-center ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                >
+                  <Clock size={18} className="mr-2" />
+                  <span className="hidden sm:inline">Transcript</span>
+                  {showHistory ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
+                
+                {isTeacher && classSession && (
+                  <button
+                    onClick={saveSessionRecording}
+                    className={`p-3 rounded-lg flex items-center ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                  >
+                    <Save size={18} className="mr-2" />
+                    <span className="hidden sm:inline">Save</span>
+                  </button>
+                )}
+                
+                {isTeacher && classSession && (
+                  <button
+                    onClick={endSession}
+                    className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white flex items-center"
+                  >
+                    <X size={16} className="mr-2" />
+                    <span>End Session</span>
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Transcript history (conditionally rendered) */}
+            {showHistory && (
+              <div className={`mt-4 p-4 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'}`}>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium">Transcript History</h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={clearHistory}
+                      className={`p-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                    >
+                      <RefreshCcw size={14} />
+                    </button>
+                    <button
+                      onClick={toggleHistory}
+                      className={`p-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-40 overflow-y-auto">
+                  {transcriptHistory.length > 0 ? (
+                    <ul className="space-y-2">
+                      {transcriptHistory.map((item, index) => (
+                        <li key={index} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex justify-between`}>
+                          <span className="flex-1">{item.text}</span>
+                          <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} ml-2`}>{item.timestamp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-center text-gray-500 py-4">No transcript history yet.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Chat and student list sidebar */}
+        {showStudentsList && (
+          <div className={`w-80 border-l ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} flex flex-col`}>
+            <div className="p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold">
+                {isTeacher ? 'Students' : 'Participants'}
+              </h2>
+            </div>
+            
+            {/* Students list */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {activeStudents.map(student => (
+                <div 
+                  key={student.id}
+                  className={`p-3 mb-2 rounded-lg flex items-center justify-between ${
+                    darkMode ? 'bg-gray-750' : 'bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${primaryColor} text-white`}>
+                      {student.name.substring(0, 1)}
+                    </div>
+                    <span className="ml-2">{student.name}</span>
+                  </div>
+                  {student.handRaised && (
+                    <span className="p-1 rounded-full bg-yellow-500">
+                      <Hand size={14} className="text-white" />
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* Chat section */}
+            <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className="font-medium mb-2">Class Chat</h3>
+              <div className={`h-60 overflow-y-auto mb-2 p-2 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'}`}>
+                {messages.length > 0 ? (
+                  <div className="space-y-2">
+                    {messages.map((msg, index) => (
+                      <div key={index} className={`p-2 rounded-lg ${
+                        msg.sender === currentUser.id
+                          ? `${primaryColor} text-white`
+                          : darkMode ? 'bg-gray-700' : 'bg-white'
+                      }`}>
+                        <div className="flex justify-between items-center text-xs mb-1">
+                          <span className={msg.sender === currentUser.id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                            {msg.senderName} ({msg.senderRole})
+                          </span>
+                          <span className={msg.sender === currentUser.id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                            {msg.timestamp}
+                          </span>
+                        </div>
+                        <p>{msg.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-6">No messages yet.</p>
+                )}
+              </div>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message..."
+                  className={`flex-1 px-3 py-2 rounded-l-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} focus:outline-none`}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!message.trim()}
+                  className={`px-3 py-2 rounded-r-lg ${primaryColor} ${primaryHoverColor} text-white ${!message.trim() && 'opacity-50 cursor-not-allowed'}`}
+                >
+                  <MessageSquare size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Join modal for students */}
+      {renderJoinModal()}
+      
+      {/* Help panel */}
+      {renderHelpPanel()}
+      
+      {/* Floating action button for students */}
+      {!isTeacher && classSession && (
+        <FloatingActionButton
+          darkMode={darkMode}
+          primaryColor={primaryColor}
+          toggleHand={toggleHand}
+          handRaised={handRaised}
+        />
+      )}
     </div>
   );
-};
+}
 
 export default ClassMode;
