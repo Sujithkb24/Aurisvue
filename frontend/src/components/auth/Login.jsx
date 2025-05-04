@@ -133,7 +133,7 @@ const Login = ({ darkMode=true }) => {
         user = await login(emailOrPhone, null, faceDescriptor);
       } else {
         // Face auth selected but no face detected yet
-        setError('Please complete the face verification first');
+        setError('Please complete the setup of face authentication first.');
         setLoading(false);
         return;
       }

@@ -35,10 +35,11 @@ const FaceAuth = ({
   useEffect(() => {
     const loadModels = async () => {
       try {
+        const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
         await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-          faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-          faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]);
         setStatusMessage("Ready to scan. Click the button to start.");
       } catch (error) {
@@ -382,7 +383,7 @@ const FaceAuth = ({
   return (
     <div className="flex flex-col items-center">
       <p className="mb-4 text-center">
-        Please ensure your face is visible in the camera for authentication.
+        Enter yor email. Procced by ensuring your face is visible in the camera for authentication.
       </p>
       
       <div className="relative w-full mb-4">
