@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ChevronRight, ChevronLeft, Clock, Award, HelpCircle, Check, X, RefreshCw } from 'lucide-react';
 
-const QuizPage = ({ darkMode = true }) => {
+const Quiz = ({ darkMode = true }) => {
   // State management
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -478,4 +478,4 @@ const QuizPage = ({ darkMode = true }) => {
   );
 };
 
-export default QuizPage;
+export default Quiz;

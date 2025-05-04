@@ -10,7 +10,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
-const TrainingPage = () => {
+const Training = () => {
   const [bot, setBot] = useState(ybot);
   const [speed, setSpeed] = useState(0.03);
   const [pause, setPause] = useState(800);
@@ -224,4 +224,4 @@ const TrainingPage = () => {
   );
 };
 
-export default TrainingPage;
+export default Training;

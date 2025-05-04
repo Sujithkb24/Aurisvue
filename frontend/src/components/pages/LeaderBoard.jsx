@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const LeaderboardPage = () => {
+const Leaderboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
@@ -24,4 +24,4 @@ const LeaderboardPage = () => {
   );
 };
 
-export default LeaderboardPage;
+export default Leaderboard;

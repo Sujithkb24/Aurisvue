@@ -7,6 +7,10 @@ import ClassMode from './components/modes/class';
 import PluginMode from './components/modes/plugin';
 import PluginActivation from './components/plugin/activation';
 import TeacherAnalyticsDashboard from './components/TeacherAnalytics';
+import Quiz from './components/pages/QuizPage'; // Import Quiz component
+import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard component
+import Training from './components/pages/TrainingPage'; // Import Training component
+import Dashboard from './components/pages/Dashboard'; // Import Dashboard component
 import React from 'react';
 import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 
@@ -22,8 +26,12 @@ const AppRouter = () => {
           <Route path="/class/:teacherId?" element={<ClassMode />} />
           <Route path="/plugin" element={<PluginMode />} />
           <Route path="/setup" element={<PluginActivation />} />
-          <Route path="/analytics" element={<TeacherAnalyticsDashboard />} />
-          {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
+          <Route path="/teacher-analytics" element={<TeacherAnalyticsDashboard />} />
+          <Route path="/quiz" element={<Quiz />} /> {/* Quiz route */}
+          <Route path="/leaderboard" element={<Leaderboard />} /> {/* Leaderboard route */}
+          <Route path="/training" element={<Training />} /> {/* Training route */}
+          <Route path="/dashboard" element={<Dashboard />} /> {/* Dashboard route */}
+          <Route path="*" element={<Navigate to="/" replace />} /> {/* Fallback route */}
         </Routes>
       </AuthProvider>
     </BrowserRouter>

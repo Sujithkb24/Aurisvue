@@ -13,7 +13,6 @@ const Login = ({ darkMode=true }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [useFaceAuth, setUseFaceAuth] = useState(true); // Default to Face Authentication
   const [isEmailValid, setIsEmailValid] = useState(true);
-  const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [role, setUserRole] = useState(null); 
   const [faceDescriptor, setFaceDescriptor] = useState(null); // Add state for face descriptor
 
@@ -79,17 +78,8 @@ const Login = ({ darkMode=true }) => {
       // Handle user navigation based on role
       if (user && user.role) {
         setUserRole(user.role);
-        
-        if (user.role === 'teacher') {
-          // If teacher, navigate directly to their class page
-          navigate(`/class/${user._id}`);
-        } else if (user.role === 'student') {
-          // Only show the teacher selection modal if the user is a student
-          setShowTeacherModal(true);
-        } else {
-          // Handle any other roles if needed
           navigate('/dashboard'); // Default navigation
-        }
+        
       }
     } catch (err) {
       console.error('Face login error:', err);
@@ -141,13 +131,7 @@ const Login = ({ darkMode=true }) => {
       if (user && user.role) {
         setUserRole(user.role);
   
-        // if (user.role === 'teacher') {
-        //   navigate(`/class/${user._id}`);
-        // } else if (user.role === 'student') {
-        //   setShowTeacherModal(true);
-        // } else {
-        //   // Handle any other roles if needed
-          navigate('/dashboard'); // Default navigation
+          navigate('/dashboard'); 
 
       }
     } catch (err) {
@@ -169,13 +153,6 @@ const Login = ({ darkMode=true }) => {
     setFaceDescriptor(null); // Clear face data when switching
   };
   
-  const handleTeacherSelect = (teacher) => {
-    setShowTeacherModal(false);
-    // Handle the selected teacher
-    console.log('Selected teacher:', teacher);
-    // Navigate to dashboard/home after teacher selection
-    navigate(`/class/${teacher._id}`); // Fixed: Changed teacherId to teacher._id
-  };
 
   return (
     <div className={`flex flex-col items-center justify-center min-h-screen px-4 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
@@ -283,20 +260,6 @@ const Login = ({ darkMode=true }) => {
         </div>
       </div>
       
-      {/* Only show TeacherSelectionModal if userRole is student */}
-      {/* {role === 'student' && selectedSchool && (
-        <button
-          type="button"
-          onClick={() => setShowTeacherModal(true)}
-          className={`w-full px-4 py-2 rounded-lg ${
-            darkMode
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          }`}
-        >
-          Select Teacher
-        </button>
-      )} */}
     </div>
   );
 };
