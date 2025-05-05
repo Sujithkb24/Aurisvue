@@ -22,9 +22,9 @@ const parsePDF = async () => {
         });
 
         // 4. Display the extracted text
-        console.log('=== Extracted PDF Content ===');
-        console.log(data.text);
-        console.log('============================');
+        // console.log('=== Extracted PDF Content ===');
+        // console.log(data.text);
+        // console.log('============================');
 
         return data.text;
 

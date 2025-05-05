@@ -2,38 +2,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import parsePDF from '../utils/parsePdf.js';
-
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import Leaderboard from '../models/leaderboard.model.js';
 import generateQuiz from '../services/GeminiService.js';
 // Get the absolute path to your PDF
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Define possible paths
-const pdfPath1 = path.join(__dirname, '../test/data/isl_tb.pdf');
-const pdfPath2 = path.join(__dirname, '../../test/data/isl_tb.pdf');
-const pdfPath3 = 'D:/Projects/AurisVue/backend/test/data/isl_tb.pdf';
-
-// Debugging - check which path exists
-console.log('Checking paths...');
-const availablePath = [pdfPath1, pdfPath2, pdfPath3].find((p) => {
-  console.log(`Checking path: ${p}`);
-  return fs.existsSync(p);
-});
-
-if (!availablePath) {
-  throw new Error(`PDF not found at any path. Tried:
-  1. ${pdfPath1}
-  2. ${pdfPath2}
-  3. ${pdfPath3}`);
-}
-
-console.log(`Using PDF path: ${availablePath}`);
-const FINAL_PDF_PATH = availablePath; // Dynamically set the correct path
+const pdfPath= path.join(__dirname, '../test/data/isl_tb.pdf');
 
 export const getQuestions = async (req, res) => {
   try {
-    const context = await parsePDF(FINAL_PDF_PATH);
+    const context = await parsePDF(pdfPath);
     const quiz = await generateQuiz(context);
     res.status(200).json({ quiz });
   } catch (error) {
@@ -41,11 +21,6 @@ export const getQuestions = async (req, res) => {
     res.status(500).json({
       error: 'PDF access failed',
       message: error.message,
-      triedPaths: {
-        path1: pdfPath1,
-        path2: pdfPath2,
-        path3: pdfPath3,
-      },
       currentDir: __dirname,
     });
   }

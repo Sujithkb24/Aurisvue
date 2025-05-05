@@ -58,17 +58,36 @@ const Quiz = ({ darkMode = true }) => {
       setTimer(0);
       setQuizCompleted(false);
       setFeedback(null);
-      
+  
       const response = await axios.get(`${API_BASE_URL}/questions`, {
         params: { difficulty, count: questionCount }
       });
-      
-      setQuestions(response.data);
+  
+      console.log("Response Data:", response.data); // Debugging line to check the response
+  
+      // Parse the response into the expected format
+      const parsedQuestions = response.data.quiz.split("\n\n").map((block) => {
+        const lines = block.split("\n");
+        const questionLine = lines[0];
+        const options = lines.slice(1, -1).map((line) => line.trim().slice(3)); // Remove "a) ", "b) ", etc.
+        const answerLine = lines[lines.length - 1];
+        const answerIndex = options.findIndex((option) =>
+          answerLine.includes(option)
+        );
+  
+        return {
+          question: questionLine.trim(),
+          options,
+          answerIndex
+        };
+      });
+  
+      setQuestions(parsedQuestions);
       setLoading(false);
       setTimerActive(true); // Start timer when questions load
     } catch (err) {
-      console.error('Error fetching questions:', err);
-      setError('Failed to load quiz questions. Please try again later.');
+      console.error("Error fetching questions:", err);
+      setError("Failed to load quiz questions. Please try again later.");
       setLoading(false);
     }
   };
