@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/user.model.js';
 import School from '../models/school.model.js';
 import verifyToken from '../middleware/auth.middleware.js';
-import { loginWithFace } from '../controllers/auth.controller.js';
+import { loginWithFace, checkFaceAuthEnabled } from '../controllers/auth.controller.js';
 import admin from '../services/firebase.js';
 
 const router = express.Router();
