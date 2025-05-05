@@ -28,9 +28,9 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
   
-  const register = async (email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) => {
+  const register = async (name, email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) => {
     try {
-      const result = await AuthService.register(email, password, role, useFaceAuth, faceDescriptor, schoolId);
+      const result = await AuthService.register(name, email, password, role, useFaceAuth, faceDescriptor, schoolId);
       
       // Update state after successful registration
       setCurrentUser(result.user);

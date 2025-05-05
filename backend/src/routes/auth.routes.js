@@ -12,7 +12,7 @@ router.post('/login-face', loginWithFace);
 // Create or update user on frontend registration
 router.post('/register', async (req, res) => {
   try {
-    const { email, role, useFaceAuth, faceDescriptor, schoolId, uid } = req.body;
+    const { name, email, role, useFaceAuth, faceDescriptor, schoolId, uid } = req.body;
 
     if (!email || !role || !uid) {
       return res.status(400).json({ message: 'Email, role, and uid are required' });
@@ -32,6 +32,7 @@ router.post('/register', async (req, res) => {
 
     user = new User({
       uid,
+      name,
       email,
       role,
       useFaceAuth: useFaceAuth || false,
@@ -64,7 +65,7 @@ router.post('/register', async (req, res) => {
 // Register with face authentication (no Firebase uid yet)
 router.post('/register-face', async (req, res) => {
   try {
-    const { email, role, faceDescriptor, schoolId } = req.body;
+    const { name, email, role, faceDescriptor, schoolId } = req.body;
     
     // Validate input
     if (!email || !role || !faceDescriptor) {
@@ -84,6 +85,7 @@ router.post('/register-face', async (req, res) => {
     // Create new user
     user = new User({
       uid,
+      name,
       email,
       role,
       useFaceAuth: true,

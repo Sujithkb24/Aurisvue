@@ -7,6 +7,7 @@ import FaceAuth from './FaceAuth';
 import axios from 'axios';
 
 const Signup = ({ darkMode=true }) => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -173,6 +174,7 @@ if (!register) {
       if (setupFaceAuth) {
         // Register with face authentication
         registrationResult = await register(
+          name,
           email, 
           null, 
           role, 
@@ -183,6 +185,7 @@ if (!register) {
       } else {
         // Register with password
         registrationResult = await register(
+          name,
           email, 
           password, 
           role, 
@@ -194,7 +197,7 @@ if (!register) {
       
       // If creating a new school and user is successfully registered
       if (role === 'teacher' && isCreatingNewSchool && registrationResult?.token) {
-        // Now create the school with the authenticated user
+        //create the school with the authenticated user
         const newSchool = await createNewSchool(registrationResult.token);
         
         if (newSchool?._id) {
@@ -280,6 +283,20 @@ if (!register) {
               required
             />
           </div>
+          <div>
+            <label htmlFor="name" className="block mb-1 font-medium">Full Name</label>
+            <input 
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={`w-full px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
+              }`}
+              placeholder="John Doe"
+              required
+            />
+          </div>  
           
           {/* Role Selection */}
           <div>

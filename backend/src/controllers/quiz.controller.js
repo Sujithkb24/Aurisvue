@@ -1,109 +1,54 @@
-// controllers/quiz.controller.js
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import parsePDF from '../utils/parsePdf.js';
 import Leaderboard from '../models/leaderboard.model.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import generateQuiz from '../services/GeminiService.js';
+// Get the absolute path to your PDF
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Define possible paths
+const pdfPath1 = path.join(__dirname, '../test/data/isl_tb.pdf');
+const pdfPath2 = path.join(__dirname, '../../test/data/isl_tb.pdf');
+const pdfPath3 = 'D:/Projects/AurisVue/backend/test/data/isl_tb.pdf';
 
-// Get ISL quiz questions from Gemini AI
+// Debugging - check which path exists
+console.log('Checking paths...');
+const availablePath = [pdfPath1, pdfPath2, pdfPath3].find((p) => {
+  console.log(`Checking path: ${p}`);
+  return fs.existsSync(p);
+});
+
+if (!availablePath) {
+  throw new Error(`PDF not found at any path. Tried:
+  1. ${pdfPath1}
+  2. ${pdfPath2}
+  3. ${pdfPath3}`);
+}
+
+console.log(`Using PDF path: ${availablePath}`);
+const FINAL_PDF_PATH = availablePath; // Dynamically set the correct path
+
 export const getQuestions = async (req, res) => {
-    try {
-      // First check if API key exists
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error('Google Generative AI API key is missing from environment variables');
-      }
-  
-      // Validate and parse parameters
-      const difficulty = ['easy', 'medium', 'hard'].includes(req.query.difficulty) 
-        ? req.query.difficulty 
-        : 'medium';
-      
-      const count = Math.min(Math.max(parseInt(req.query.count) || 10, 1), 20); // Allow 1-20 questions
-      
-      // Initialize with API key verification
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-pro",
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_NONE"
-          }
-        ]
-      });
-  
-      const prompt = `Generate exactly ${count} multiple-choice questions about Indian Sign Language (ISL) at ${difficulty} difficulty level.
-      Follow these rules STRICTLY:
-      1. Each question must have 4 options
-      2. Only one correct answer per question
-      3. Include clear explanations
-      4. Cover these ISL aspects: hand shapes, movements, facial expressions, grammar, culture
-      5. For difficulty levels:
-         - Easy: Basic signs and common phrases
-         - Medium: Grammar and compound signs
-         - Hard: Regional variations and nuanced expressions
-      
-      Format as VALID JSON array:
-      [
-        {
-          "question": "What does this ISL sign mean?",
-          "options": ["Hello", "Thank you", "Goodbye", "Help"],
-          "answerIndex": 1,
-          "explanation": "The sign described represents 'Thank you' in ISL"
-        }
-      ]`;
-  
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-  
-      try {
-        // More robust JSON extraction
-        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```|\[\s*\{[\s\S]*?\}\s*\]/);
-        if (!jsonMatch) throw new Error("No JSON found in response");
-  
-        const jsonStr = jsonMatch[1] || jsonMatch[0];
-        const questions = JSON.parse(jsonStr);
-  
-        // Validation
-        if (!Array.isArray(questions) || questions.length !== count) {
-          throw new Error(`Expected ${count} questions, got ${questions.length}`);
-        }
-  
-        const validatedQuestions = questions.map((q, i) => {
-          if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
-              typeof q.answerIndex !== 'number' || q.answerIndex < 0 || q.answerIndex > 3) {
-            throw new Error(`Invalid format in question ${i + 1}`);
-          }
-          return {
-            question: q.question.trim(),
-            options: q.options.map(opt => opt.trim()),
-            answerIndex: q.answerIndex,
-            explanation: q.explanation?.trim() || "No explanation provided",
-            difficulty: difficulty // Add difficulty level to each question
-          };
-        });
-  
-        res.status(200).json(validatedQuestions);
-        
-      } catch (parseError) {
-        console.error("Parsing error:", parseError);
-        const Question = (await import('../models/question.model.js')).default;
-        const dbQuestions = await Question.aggregate([
-          { $match: { difficulty } },
-          { $sample: { size: count } }
-        ]);
-        res.status(200).json(dbQuestions);
-      }
-    } catch (error) {
-      console.error('Controller error:', error);
-      res.status(500).json({ 
-        message: error.message,
-        fallback: "Using database questions",
-        errorDetails: error.response?.data || null
-      });
-    }
-  };
+  try {
+    const context = await parsePDF(FINAL_PDF_PATH);
+    const quiz = await generateQuiz(context);
+    res.status(200).json({ quiz });
+  } catch (error) {
+    console.error('Final error:', error);
+    res.status(500).json({
+      error: 'PDF access failed',
+      message: error.message,
+      triedPaths: {
+        path1: pdfPath1,
+        path2: pdfPath2,
+        path3: pdfPath3,
+      },
+      currentDir: __dirname,
+    });
+  }
+};
 // Submit quiz answers and save score
 export const submitQuiz = async (req, res) => {
   const { userId, score, totalQuestions, difficulty } = req.body;
@@ -160,7 +105,6 @@ export const getQuizFeedback = async (req, res) => {
       
       const model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-pro"
-        // Removed explicit apiKey parameter as it's passed in constructor
       });
   
       const percentage = Math.round((score / totalQuestions) * 100);

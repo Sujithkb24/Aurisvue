@@ -26,7 +26,7 @@ const auth = getAuth(app);
 
 class AuthService {
   // Register with email and password or face auth
-  async register(email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) {
+  async register(name, email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) {
     try {
       let userData = null;
       let token = null;
@@ -34,6 +34,7 @@ class AuthService {
       if (useFaceAuth && faceDescriptor) {
         // Registration with face authentication
         const response = await axios.post(`${API_URL}/auth/register-face`, {
+          name,
           email,
           role,
           faceDescriptor: Array.from(faceDescriptor), // Convert to regular array for JSON
@@ -75,6 +76,7 @@ class AuthService {
         
         // Update backend with user data
         await axios.post(`${API_URL}/auth/register`, {
+          name,
           uid: userData.uid,
           email: userData.email,
           role,
@@ -85,7 +87,7 @@ class AuthService {
           }
         });
       }
-      
+      localStorage.setItem('user_name', name);
       return { user: userData, token };
     } catch (error) {
       console.error('Registration error:', error);
@@ -145,7 +147,7 @@ class AuthService {
             Authorization: `Bearer ${await user.getIdToken()}`
           }
         });
-  
+        localStorage.setItem('user_name', response.data.name);
         if (response.data) {
           // Save user role in local storage
           if (response.data.role) {

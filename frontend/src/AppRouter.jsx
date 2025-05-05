@@ -12,7 +12,7 @@ import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard 
 import Training from './components/pages/TrainingPage'; // Import Training component
 import Dashboard from './components/pages/Dashboard'; // Import Dashboard component
 import React from 'react';
-import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
+import { AuthProvider } from './contexts/AuthContext'; 
 
 const AppRouter = () => {
   return (
