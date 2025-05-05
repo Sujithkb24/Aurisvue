@@ -2,6 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import parsePDF from '../utils/parsePdf.js';
+
 import Leaderboard from '../models/leaderboard.model.js';
 import generateQuiz from '../services/GeminiService.js';
 // Get the absolute path to your PDF

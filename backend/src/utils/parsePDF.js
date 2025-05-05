@@ -3,45 +3,58 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pdfParse from 'pdf-parse';
 
-// Get current module's directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Always parses the same PDF file (no user input allowed).
- * @returns {Promise<string>} Extracted text from the fixed PDF path.
- */
-const parsePDF = async ({ debug = false } = {}) => {
-  try {
-    const pdfPath = path.normalize(path.join(__dirname, '../test/data/isl_tb.pdf'));
-    if (debug) console.log(`[PDF Parser] Always using: ${pdfPath}`);
-    console.log(`[PDF Parser] Constructed file path: ${pdfPath}`);
+const parsePDF = async () => {
+    try {
+        // 1. Construct the PDF path
+        const pdfPath = path.join(__dirname, '../test/data/isl_tb.pdf');
+        console.log(`[PDF Parser] Constructed file path: ${pdfPath}`);
 
-    // Check if file exists
-    if (!fs.existsSync(pdfPath)) {
-      throw new Error(`[PDF Parser] File does not exist at path: ${pdfPath}`);
+        // 2. Read the PDF file
+        const dataBuffer = fs.readFileSync(pdfPath);
+
+        // 3. Parse the PDF with custom options
+        const data = await pdfParse(dataBuffer, {
+            max: 10, // Limit to 10 pages (adjust as needed)
+            pagerender: render_page, // Custom renderer for better text extraction
+        });
+
+        // 4. Display the extracted text
+        console.log('=== Extracted PDF Content ===');
+        console.log(data.text);
+        console.log('============================');
+
+        return data.text;
+
+    } catch (error) {
+        console.error('[PDF Parser] Error:', error.message);
+        throw error;
     }
-
-    // Read file synchronously (throws error if missing)
-    const buffer = fs.readFileSync(pdfPath);
-
-    // Parse PDF
-    const result = await pdfParse(buffer, { 
-      max: 0,               // All pages
-      normalizeWhitespace: true, // Clean text
-    });
-
-    if (!result.text?.trim()) {
-      throw new Error('PDF is empty or could not extract text.');
-    }
-
-    // Return cleaned text
-    return result.text.trim().replace(/\s+/g, ' ');
-
-  } catch (error) {
-    console.error('[PDF Parser] Failed:', error.message);
-    throw error; // Re-throw to let caller handle it
-  }
 };
+
+// Custom page renderer for better text extraction
+function render_page(pageData) {
+    const render_options = {
+        normalizeWhitespace: true,
+        disableCombineTextItems: false
+    };
+    return pageData.getTextContent(render_options)
+        .then(textContent => {
+            let lastY, text = '';
+            for (const item of textContent.items) {
+                if (lastY !== item.transform[5]) {
+                    text += '\n'; // New line when Y position changes
+                }
+                text += item.str + ' ';
+                lastY = item.transform[5];
+            }
+            return text;
+        });
+}
+
+// Execute the parser
+parsePDF();
 
 export default parsePDF;
