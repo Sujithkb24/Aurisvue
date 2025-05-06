@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/user.model.js';
 import School from '../models/school.model.js';
 import verifyToken from '../middleware/auth.middleware.js';
-import { loginWithFace } from '../controllers/auth.controller.js';
+import { loginWithFace, checkFaceAuthEnabled } from '../controllers/auth.controller.js';
 import admin from '../services/firebase.js';
 
 const router = express.Router();
@@ -12,7 +12,7 @@ router.post('/login-face', loginWithFace);
 // Create or update user on frontend registration
 router.post('/register', async (req, res) => {
   try {
-    const { email, role, useFaceAuth, faceDescriptor, schoolId, uid } = req.body;
+    const { name, email, role, useFaceAuth, faceDescriptor, schoolId, uid } = req.body;
 
     if (!email || !role || !uid) {
       return res.status(400).json({ message: 'Email, role, and uid are required' });
@@ -32,6 +32,7 @@ router.post('/register', async (req, res) => {
 
     user = new User({
       uid,
+      name,
       email,
       role,
       useFaceAuth: useFaceAuth || false,
@@ -64,7 +65,7 @@ router.post('/register', async (req, res) => {
 // Register with face authentication (no Firebase uid yet)
 router.post('/register-face', async (req, res) => {
   try {
-    const { email, role, faceDescriptor, schoolId } = req.body;
+    const { name, email, role, faceDescriptor, schoolId } = req.body;
     
     // Validate input
     if (!email || !role || !faceDescriptor) {
@@ -84,6 +85,7 @@ router.post('/register-face', async (req, res) => {
     // Create new user
     user = new User({
       uid,
+      name,
       email,
       role,
       useFaceAuth: true,
@@ -146,6 +148,7 @@ router.get('/user-info/:uid', verifyToken, async (req, res) => {
 
     res.json({
       role: user.role,
+      name: user.name,
       schoolId: user.schoolId || null 
     });
   } catch (err) {

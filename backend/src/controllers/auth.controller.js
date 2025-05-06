@@ -18,15 +18,14 @@ const compareFaceDescriptors = (storedDescriptor, loginDescriptor, threshold = 0
 
 export const loginWithFace = async (req, res) => {
   try {
-    const { emailOrPhone, faceDescriptor } = req.body;
+    const { faceDescriptor } = req.body;
 
     if (!faceDescriptor || faceDescriptor.length !== 128) {
       return res.status(400).json({ message: 'Invalid or missing face descriptor' });
     }
 
-    // Find candidate users based on email or phone
+    // Fetch all users with face authentication enabled and a non-null face descriptor
     const users = await User.find({
-      $or: [{ email: emailOrPhone }, { phone: emailOrPhone }],
       useFaceAuth: true,
       faceDescriptor: { $ne: null }
     });
@@ -35,28 +34,32 @@ export const loginWithFace = async (req, res) => {
       return res.status(404).json({ message: 'No users found with face auth enabled' });
     }
 
-    // Match face descriptor
-    let matchedUser = null;
+    // Find the best matching user based on face descriptor comparison
+    let bestMatchUser = null;
+    let bestMatchDistance = Infinity;
+
     for (const user of users) {
-      if (compareFaceDescriptors(user.faceDescriptor, faceDescriptor)) {
-        matchedUser = user;
-        break;
+      const distance = compareFaceDescriptors(user.faceDescriptor, faceDescriptor);
+
+      if (distance && distance < bestMatchDistance) {
+        bestMatchUser = user;
+        bestMatchDistance = distance;
       }
     }
 
-    if (!matchedUser) {
+    if (!bestMatchUser) {
       return res.status(401).json({ message: 'Face authentication failed' });
     }
 
     // Fetch school info if available
-    const schoolId = matchedUser.schoolId || null;
+    const schoolId = bestMatchUser.schoolId || null;
 
     res.json({
       message: 'Login successful',
       user: {
-        uid: matchedUser.uid,
-        email: matchedUser.email,
-        role: matchedUser.role,
+        uid: bestMatchUser.uid,
+        email: bestMatchUser.email,
+        role: bestMatchUser.role,
         schoolId
       },
       schoolId
@@ -67,6 +70,7 @@ export const loginWithFace = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 export const checkFaceAuthEnabled = async (req, res) => {
   try {

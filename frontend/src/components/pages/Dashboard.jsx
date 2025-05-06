@@ -30,8 +30,7 @@ const Dashboard = () => {
     currentUser, 
     userRole, 
     userSchool, 
-    logout, 
-    getSchoolInfo 
+    logout,  
   } = useAuth();
 
   // Track cursor position for spotlight effect
@@ -53,29 +52,28 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    // Load school info if available
-    if (userSchool) {
-      const fetchSchoolInfo = async () => {
-        try {
-          const schoolData = await getSchoolInfo(userSchool);
-          setSchoolInfo(schoolData);
-        } catch (error) {
-          console.error("Error fetching school info:", error);
-        }
-      };
-      
-      fetchSchoolInfo();
-    }
-    
+    const fetchSchoolInfo = async () => {
+      try {
+         const schoolData = JSON.parse(localStorage.getItem('user_school'));
+        setSchoolInfo(schoolData);
+      } catch (error) {
+        console.error("Error fetching school info:", error);
+      }
+    };
+  
+    // Call the function explicitly
+    fetchSchoolInfo();
+  }, []);
+  useEffect(() => {
     // Set user information
     if (currentUser) {
       setUserInfo({
-        name: currentUser.displayName || currentUser.email.split('@')[0],
+        name: localStorage.getItem('user_name') || currentUser.email.split('@')[0],
         email: currentUser.email,
         uid: currentUser.uid
       });
     }
-  }, [currentUser, userSchool, getSchoolInfo]);
+  }, [currentUser]);
 
   const handleLogout = async () => {
     try {

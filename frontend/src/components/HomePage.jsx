@@ -10,16 +10,14 @@ import {
   Chrome, 
   BarChart2,
   Layout,
-  Settings,
   Home,
-  Info,
   X
 } from 'react-feather';
 import Header from './header';
 import FloatingActionButton from './ActionButton';
 import TeacherSelectionModal from './TeacherSelection';
 import QuickAccessWidget from './plugin/access_widget';
-import SettingsPanel from './Settings';
+
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -51,7 +49,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
     },
     {
       id: 'class',
-      title: 'Class Mode',
+      title: 'Interact Mode',
       description: 'ISL translation for classroom environments with Q&A support',
       icon: <BookOpen size={24} />,
       color: 'purple'
@@ -231,6 +229,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       {/* Floating Action Button for quick access */}
       <FloatingActionButton 
         darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
         navigateToMode={navigateToMode}
         navigateToHome={navigateToHome}
         activeMode={activeMode}

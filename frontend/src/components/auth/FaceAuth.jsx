@@ -7,10 +7,13 @@ const FaceAuth = ({
   emailOrPhone, 
   darkMode, 
   isSetup = false, //to differentiate login vs signup
-  onFaceDetected  //callback prop to send face data to parent
+  onFaceDetected,  //callback prop to send face data to parent
+  onStatusChange,  //callback to send status messages to parent
+  onProgressChange //callback to send progress percentage to parent
 }) => {
   const [faceDescriptor, setFaceDescriptor] = useState(null);
-  const [statusMessage, setStatusMessage] = useState("Loading face model...");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [authInProgress, setAuthInProgress] = useState(false);
@@ -32,19 +35,43 @@ const FaceAuth = ({
   // Store frame history for movement analysis
   const frameHistory = useRef([]);
   
+  // Send status messages to parent when they change
+  useEffect(() => {
+    if (onStatusChange && statusMessage) {
+      onStatusChange(statusMessage);
+    }
+  }, [statusMessage, onStatusChange]);
+
+  // Send progress updates to parent
+  useEffect(() => {
+    if (onProgressChange) {
+      // Calculate progress percentage based on blinks and texture score
+      const progressPercentage = livenessCheck.passed ? 
+        100 : // Always 100% when passed
+        Math.min(95, // Cap at 95% until fully passed
+          livenessCheck.blinksDetected * 40 + 
+          (livenessCheck.textureScore > 60 ? 55 : livenessCheck.textureScore * 0.55)
+        );
+      onProgressChange(progressPercentage);
+    }
+  }, [livenessCheck, onProgressChange]);
+  
   useEffect(() => {
     const loadModels = async () => {
       try {
+        setIsLoading(true);
         const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]);
-        setStatusMessage("Ready to scan. Click the button to start.");
+        setIsLoading(false);
+        setStatusMessage("Ready to scan your face");
       } catch (error) {
         console.error("Error loading face-api models:", error);
-        setStatusMessage("Error loading face models. Please refresh.");
+        setIsLoading(false);
+        setStatusMessage("Error loading face detection models");
       }
     };
 
@@ -59,12 +86,7 @@ const FaceAuth = ({
   }, []);
 
   const startFaceScanning = () => {
-    if (isScanning || !emailOrPhone) return;
-    
-    if (!emailOrPhone.trim()) {
-      setStatusMessage("⚠️ Please enter your email or phone first");
-      return;
-    }
+    if (isScanning || isLoading) return;
     
     setIsScanning(true);
     setStatusMessage("🔍 Looking for your face...");
@@ -87,6 +109,7 @@ const FaceAuth = ({
 
   const stopFaceScanning = () => {
     setIsScanning(false);
+    setStatusMessage("Face scanning stopped");
     if (faceDetectionInterval.current) {
       clearInterval(faceDetectionInterval.current);
       faceDetectionInterval.current = null;
@@ -132,9 +155,15 @@ const FaceAuth = ({
             // Save face descriptor for login
             setFaceDescriptor(detection.descriptor);
     
-            //Calling the callback with the face descriptor
+            // Calling the callback with the face descriptor
             if (onFaceDetected && detection.descriptor) {
               onFaceDetected(detection.descriptor);
+            }
+            
+            // Clear detection interval once verification is complete
+            if (faceDetectionInterval.current) {
+              clearInterval(faceDetectionInterval.current);
+              faceDetectionInterval.current = null;
             }
           } else {
             if (livenessResult.isBlinkDetected) {
@@ -155,8 +184,10 @@ const FaceAuth = ({
       }
     } catch (error) {
       console.error("Face detection error:", error);
+      setStatusMessage("Error during face detection");
     }
   };
+
 
   const EAR_THRESHOLD = 0.29; // Adjusted to detect actual blinks
   const MAX_HISTORY = 10;  // Keep track of last 10 eye states
@@ -380,42 +411,67 @@ const FaceAuth = ({
     }
   };
 
+  // Calculate current progress percentage for the progress bar display
+  const calculateProgressPercentage = () => {
+    // Always return 100% when verification is complete
+    if (livenessCheck.passed) {
+      return 100;
+    }
+    
+    // Otherwise calculate based on blinks and texture score (max 95% until passed)
+    return Math.min(95,
+      livenessCheck.blinksDetected * 40 + 
+      (livenessCheck.textureScore > 60 ? 55 : livenessCheck.textureScore * 0.55)
+    );
+  };
+
   return (
     <div className="flex flex-col items-center">
-      <p className="mb-4 text-center">
-        Enter yor email. Procced by ensuring your face is visible in the camera for authentication.
-      </p>
-      
-      <div className="relative w-full mb-4">
+      <div className="relative w-full h-40 md:h-52 mb-4">
+        {/* Placeholder while loading */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-gray-300 dark:bg-gray-700 rounded flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+        
+        {/* Webcam with fixed dimensions */}
         <Webcam 
           ref={webcamRef} 
           screenshotFormat="image/jpeg" 
-          className="w-full rounded"
+          className={`w-full h-full object-cover rounded ${isLoading ? 'opacity-0' : 'opacity-100'}`}
           mirrored={true}
+          videoConstraints={{
+            width: 420,
+            height: 240,
+            facingMode: "user"
+          }}
         />
-        {isScanning && (
+        
+        {isScanning && !isLoading && (
           <div className={`absolute inset-0 border-4 ${
-            faceDetected ? 'border-green-500' : 'border-red-500'
-          } ${livenessCheck.passed ? 'border-green-700' : 'animate-pulse'} rounded`}></div>
+            livenessCheck.passed ? 'border-green-700' : 
+            faceDetected ? 'border-green-500 animate-pulse' : 'border-red-500 animate-pulse'
+          } rounded`}></div>
         )}
         
         {/* Hidden canvas for texture analysis */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
       
-      {!isScanning ? (
+      {!livenessCheck.passed && (!isScanning ? (
          <button
-         onClick={startFaceScanning}
-         className={`flex items-center px-4 py-2 rounded-lg ${
-           darkMode
-             ? 'bg-blue-600 hover:bg-blue-700 text-white'
-             : 'bg-blue-500 hover:bg-blue-600 text-white'
-         } transition duration-200`}
-         disabled={authInProgress || !emailOrPhone}
-       >
-         <Camera size={18} className="mr-2" />
-         {isSetup ? 'Setup Face Authentication' : 'Authenticate with Face'}
-       </button>
+           onClick={startFaceScanning}
+           disabled={isLoading}
+           className={`flex items-center px-4 py-2 rounded-lg ${
+             darkMode
+               ? 'bg-blue-600 hover:bg-blue-700 text-white'
+               : 'bg-blue-500 hover:bg-blue-600 text-white'
+           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} transition duration-200`}
+         >
+           <Camera size={18} className="mr-2" />
+           {isLoading ? 'Preparing...' : 'Start Face Scan'}
+         </button>
       ) : (
         <button 
           onClick={stopFaceScanning}
@@ -427,42 +483,39 @@ const FaceAuth = ({
         >
           Cancel Face Scan
         </button>
-      )}
+      ))}
       
-      <p className={`mt-2 text-sm ${
-        statusMessage.includes("✅") || statusMessage.includes("👍") ? 
-          (darkMode ? "text-green-400" : "text-green-600") : 
-        statusMessage.includes("❌") ? 
-          (darkMode ? "text-red-400" : "text-red-600") : 
-        statusMessage.includes("⚠️") ? 
-          (darkMode ? "text-yellow-400" : "text-yellow-600") : 
-          (darkMode ? "text-gray-300" : "text-gray-600")
-      }`}>
-        {statusMessage}
-      </p>
-      
-      {isScanning && livenessCheck.inProgress && !livenessCheck.passed && (
+      {/* Progress bar is now always visible when scanning to show the verification progress */}
+      {isScanning && (
         <div className="mt-2 flex items-center text-xs w-full">
           <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-            <div className={`${darkMode ? "bg-blue-500" : "bg-blue-600"} h-2.5 rounded-full`} style={{ 
-              width: `${Math.min(100, 
-                livenessCheck.blinksDetected * 40 + 
-                (livenessCheck.textureScore > 60 ? 60 : livenessCheck.textureScore * 0.6)
-              )}%` 
-            }}></div>
+            <div 
+              className={`${livenessCheck.passed ? "bg-green-500" : darkMode ? "bg-blue-500" : "bg-blue-600"} h-2.5 rounded-full transition-all duration-300`} 
+              style={{ width: `${calculateProgressPercentage()}%` }}
+            ></div>
           </div>
-          <span className={`ml-2 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Verifying</span>
+          <span className={`ml-2 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+            {livenessCheck.passed ? "Complete" : "Verifying"}
+          </span>
         </div>
       )}
       
+      {/* Status message display - only shown when not complete */}
+      {(!livenessCheck.passed || !isScanning) && (
+        <div className={`mt-3 text-sm ${darkMode ? "text-blue-400" : "text-blue-600"} text-center min-h-6`}>
+          {statusMessage}
+        </div>
+      )}
+      
+      {/* Success message - shown when verification is complete */}
       {livenessCheck.passed && (
-      <div className={`mt-2 ${darkMode ? "text-green-400" : "text-green-600"} text-xs flex items-center`}>
-        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-        </svg>
-        {isSetup ? 'Face setup complete!' : 'Face authentication verified'}
-      </div>
-    )}
+        <div className={`mt-3 ${darkMode ? "text-green-400" : "text-green-600"} text-sm flex items-center justify-center`}>
+          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          {isSetup ? 'Face setup complete!' : 'Face authenticated successfully'}
+        </div>
+      )}
     </div>
   );
 };

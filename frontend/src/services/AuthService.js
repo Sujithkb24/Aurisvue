@@ -26,7 +26,7 @@ const auth = getAuth(app);
 
 class AuthService {
   // Register with email and password or face auth
-  async register(email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) {
+  async register(name, email, password, role, useFaceAuth = false, faceDescriptor = null, schoolId = null) {
     try {
       let userData = null;
       let token = null;
@@ -34,6 +34,7 @@ class AuthService {
       if (useFaceAuth && faceDescriptor) {
         // Registration with face authentication
         const response = await axios.post(`${API_URL}/auth/register-face`, {
+          name,
           email,
           role,
           faceDescriptor: Array.from(faceDescriptor), // Convert to regular array for JSON
@@ -75,6 +76,7 @@ class AuthService {
         
         // Update backend with user data
         await axios.post(`${API_URL}/auth/register`, {
+          name,
           uid: userData.uid,
           email: userData.email,
           role,
@@ -85,7 +87,7 @@ class AuthService {
           }
         });
       }
-      
+      localStorage.setItem('user_name', name);
       return { user: userData, token };
     } catch (error) {
       console.error('Registration error:', error);
@@ -94,14 +96,13 @@ class AuthService {
   }
   
   // Login with email/password or face descriptor
-  async login(emailOrPhone, password = null, useFaceAuth = false, faceDescriptor = null) {
+  async login(emailOrPhone= null, password = null, useFaceAuth = false, faceDescriptor = null) {
     let user;
   
     if (useFaceAuth && faceDescriptor) {
       // Login with face auth
       try {
         const response = await axios.post(`${API_URL}/auth/login-face`, {
-          emailOrPhone,
           faceDescriptor: Array.from(faceDescriptor)
         });
   
@@ -142,10 +143,11 @@ class AuthService {
       try {
         const response = await axios.get(`${API_URL}/auth/user-info/${user.uid}`, {
           headers: {
-            Authorization: `Bearer ${await user.getIdToken()}`
+                        Authorization: `Bearer ${await user.getIdToken()}`
           }
         });
-  
+        console.log('User info:', response.data);
+        localStorage.setItem('user_name', response.data.name);
         if (response.data) {
           // Save user role in local storage
           if (response.data.role) {
@@ -184,7 +186,7 @@ async getUserSchool() {
     try {
       // Fetch school information from the backend
       const response = await axios.get(`${API_URL}/schools/${schoolId}`);
-      console.log('School information:', response.data);
+      localStorage.setItem('user_school', JSON.stringify(response.data)); // Store in local storage for quick access
       return response.data; // Return the school details
     } catch (error) {
       console.error('Error fetching school information:', error);
@@ -356,18 +358,18 @@ async verifyTeacherCode(schoolId, teacherCode) {
   }
   
   // Check if face auth is enabled for a user
-  // async hasFaceAuthEnabled(emailOrPhone) {
-  //   try {
-  //     const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
-  //       params: { emailOrPhone }
-  //     });
+  async hasFaceAuthEnabled(emailOrPhone) {
+    try {
+      const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
+        params: { emailOrPhone }
+      });
       
-  //     return response.data && response.data.hasFaceAuth === true;
-  //   } catch (error) {
-  //     console.error("Error checking face auth status:", error);
-  //     return false;
-  //   }
-  // }
+      return response.data && response.data.hasFaceAuth === true;
+    } catch (error) {
+      console.error("Error checking face auth status:", error);
+      return false;
+    }
+  }
   
   // Listen for auth state changes - handles both Firebase and face auth
   onAuthStateChanged(callback) {
