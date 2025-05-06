@@ -914,7 +914,12 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
           </div>
         </div>
       </div>
-
+  
+      {renderJoinModal()}
+      
+      {/* Help panel */}
+      {renderHelpPanel()}
+  
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Main teaching/learning area */}
@@ -974,6 +979,24 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
                   </div>
                 )}
               </div>
+              
+              {/* Video call component integration */}
+              {(isTeacher || handRaised) && (
+                <div className="px-4 pb-4">
+                  <VideoCall
+                    isTeacher={isTeacher}
+                    handRaised={handRaised}
+                    videoEnabled={videoEnabled}
+                    darkMode={darkMode}
+                    primaryColor={primaryColor}
+                    primaryHoverColor={primaryHoverColor}
+                    classSession={classSession}
+                    videoRef={videoRef}
+                    toggleVideo={toggleVideo}
+                    activeStudents={activeStudents}
+                  />
+                </div>
+              )}
               
               {/* Student feedback component (only for students) */}
               {!isTeacher && (
@@ -1214,12 +1237,6 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
           </div>
         )}
       </div>
-      
-      {/* Join modal for students */}
-      {renderJoinModal()}
-      
-      {/* Help panel */}
-      {renderHelpPanel()}
       
       {/* Floating action button for students */}
       {!isTeacher && classSession && (
