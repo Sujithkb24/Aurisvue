@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import React,{ useState, useEffect, useRef } from 'react';
 import { 
   Mic, MicOff, MessageSquare, ChevronUp, ChevronDown, Pause, Play, 
   RefreshCcw, Clock, Share2, Video, Save, BarChart2, Hand, Users,
   VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle
 } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
-import Header from '../header';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -242,13 +241,13 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   }, [isTeacher, isPaused, socket, classSession]);
   
   // Check for active session (teacher only)
-  const checkForActiveSession = async () => {
+  const checkForActiveSession = async () => { 
     if (userRole !== 'teacher') return;
     
     setIsLoading(true);
     try {
       const token = await getToken();
-      const response = await fetch('/api/classes/active', {
+      const response = await fetch(`{import.meta.env.VITE_API_URL}/classes/active`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
