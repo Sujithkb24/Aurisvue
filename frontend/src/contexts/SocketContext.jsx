@@ -29,7 +29,7 @@ export const SocketProvider = ({ children }) => {
         const token = await getToken();
         
         // Create socket connection with auth token
-        const socketInstance = io(process.env.REACT_APP_SOCKET_URL || '', {
+        const socketInstance = io(import.meta.env.VITE_BACKEND_API || '', {
           auth: {
             token
           },

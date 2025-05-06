@@ -94,14 +94,14 @@ export const AuthProvider = ({ children }) => {
   };
   
   // Add a method to check if face auth is enabled for a user
-  // const hasFaceAuthEnabled = async (emailOrPhone) => {
-  //   try {
-  //     return await AuthService.hasFaceAuthEnabled(emailOrPhone);
-  //   } catch (error) {
-  //     console.error("Error checking face auth status:", error);
-  //     return false;
-  //   }
-  // };
+  const hasFaceAuthEnabled = async (emailOrPhone) => {
+    try {
+      return await AuthService.hasFaceAuthEnabled(emailOrPhone);
+    } catch (error) {
+      console.error("Error checking face auth status:", error);
+      return false;
+    }
+  };
   
   // Get school information
   const getSchoolInfo = async (schoolId) => {
@@ -151,7 +151,7 @@ export const AuthProvider = ({ children }) => {
     getToken,
     loading,
     updateFaceDescriptor,
-    //hasFaceAuthEnabled,
+    hasFaceAuthEnabled,
     getSchoolInfo,
     getSchools, 
     createSchool,

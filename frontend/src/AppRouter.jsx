@@ -12,12 +12,14 @@ import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard 
 import Training from './components/pages/TrainingPage'; // Import Training component
 import Dashboard from './components/pages/Dashboard'; // Import Dashboard component
 import React from 'react';
-import { AuthProvider } from './contexts/AuthContext'; 
+import { AuthProvider } from './contexts/AuthContext';
+import {SocketProvider} from './contexts/SocketContext'
 
 const AppRouter = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SocketProvider>
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/login" element={<Login />} />
@@ -33,6 +35,7 @@ const AppRouter = () => {
           <Route path="/dashboard" element={<Dashboard />} /> {/* Dashboard route */}
           <Route path="*" element={<Navigate to="/" replace />} /> {/* Fallback route */}
         </Routes>
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   );

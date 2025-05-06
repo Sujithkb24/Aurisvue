@@ -5,7 +5,7 @@ import { callFastAPI } from './fastapiService.js';
 export const handleSpeechTranscript = async (text) => {
   try {
     let inputText = text;
-
+    console.log(inputText);
     const lang = await detectLanguage(text);
     if (lang !== 'en') {
       inputText = await translateToEnglish(text);

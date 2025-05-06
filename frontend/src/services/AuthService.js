@@ -96,14 +96,13 @@ class AuthService {
   }
   
   // Login with email/password or face descriptor
-  async login(emailOrPhone, password = null, useFaceAuth = false, faceDescriptor = null) {
+  async login(emailOrPhone= null, password = null, useFaceAuth = false, faceDescriptor = null) {
     let user;
   
     if (useFaceAuth && faceDescriptor) {
       // Login with face auth
       try {
         const response = await axios.post(`${API_URL}/auth/login-face`, {
-          emailOrPhone,
           faceDescriptor: Array.from(faceDescriptor)
         });
   
@@ -359,18 +358,18 @@ async verifyTeacherCode(schoolId, teacherCode) {
   }
   
   // Check if face auth is enabled for a user
-  // async hasFaceAuthEnabled(emailOrPhone) {
-  //   try {
-  //     const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
-  //       params: { emailOrPhone }
-  //     });
+  async hasFaceAuthEnabled(emailOrPhone) {
+    try {
+      const response = await axios.get(`${API_URL}/auth/check-face-auth`, {
+        params: { emailOrPhone }
+      });
       
-  //     return response.data && response.data.hasFaceAuth === true;
-  //   } catch (error) {
-  //     console.error("Error checking face auth status:", error);
-  //     return false;
-  //   }
-  // }
+      return response.data && response.data.hasFaceAuth === true;
+    } catch (error) {
+      console.error("Error checking face auth status:", error);
+      return false;
+    }
+  }
   
   // Listen for auth state changes - handles both Firebase and face auth
   onAuthStateChanged(callback) {
