@@ -54,8 +54,8 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       try {
-         const schoolData = JSON.parse(localStorage.getItem('user_school')); // Parse the JSON string
-        setSchoolInfo(schoolData); // Set the parsed object in state
+         const schoolData = JSON.parse(localStorage.getItem('user_school'));
+        setSchoolInfo(schoolData);
       } catch (error) {
         console.error("Error fetching school info:", error);
       }

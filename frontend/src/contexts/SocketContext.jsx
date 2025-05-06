@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
@@ -10,6 +10,7 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [islResponse, setIslResponse] = useState(null);
   const { currentUser, getToken } = useAuth();
 
   useEffect(() => {
@@ -60,6 +61,12 @@ export const SocketProvider = ({ children }) => {
           setConnectionError(error.message);
         });
 
+        // Set up listener for ISL responses
+        socketInstance.on('isl_response', (data) => {
+          console.log('Received ISL response:', data);
+          setIslResponse(data);
+        });
+
         // Store socket in state
         setSocket(socketInstance);
 
@@ -79,6 +86,18 @@ export const SocketProvider = ({ children }) => {
     initializeSocket();
 
   }, [currentUser, getToken]);
+
+  // Send speech transcript to the server
+  const sendSpeechTranscript = useCallback((text) => {
+    if (socket && isConnected) {
+      socket.emit('speech_transcript', { text, timestamp: Date.now() });
+    }
+  }, [socket, isConnected]);
+
+  // Reset ISL response
+  const resetIslResponse = useCallback(() => {
+    setIslResponse(null);
+  }, []);
 
   // Reconnect function
   const reconnect = async () => {
@@ -135,6 +154,9 @@ export const SocketProvider = ({ children }) => {
     socket,
     isConnected,
     connectionError,
+    islResponse,
+    sendSpeechTranscript,
+    resetIslResponse,
     reconnect,
     joinRoom,
     leaveRoom,
