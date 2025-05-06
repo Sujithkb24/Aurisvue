@@ -78,9 +78,10 @@ const Login = ({ darkMode=true }) => {
       // Handle user navigation based on role
       if (user && user.role) {
         setUserRole(user.role);
-          navigate('/dashboard'); // Default navigation
+          // Default navigation
         
       }
+      navigate('/dashboard');
     } catch (err) {
       console.error('Face login error:', err);
       setError(err.message || 'Face authentication failed. Please try again or use password.');
@@ -131,9 +132,10 @@ const Login = ({ darkMode=true }) => {
       if (user && user.role) {
         setUserRole(user.role);
   
-          navigate('/dashboard'); 
+          
 
       }
+      navigate('/dashboard'); 
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Failed to log in');

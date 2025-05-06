@@ -148,6 +148,7 @@ router.get('/user-info/:uid', verifyToken, async (req, res) => {
 
     res.json({
       role: user.role,
+      name: user.name,
       schoolId: user.schoolId || null 
     });
   } catch (err) {

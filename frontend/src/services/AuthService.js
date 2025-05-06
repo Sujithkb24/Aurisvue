@@ -144,9 +144,10 @@ class AuthService {
       try {
         const response = await axios.get(`${API_URL}/auth/user-info/${user.uid}`, {
           headers: {
-            Authorization: `Bearer ${await user.getIdToken()}`
+                        Authorization: `Bearer ${await user.getIdToken()}`
           }
         });
+        console.log('User info:', response.data);
         localStorage.setItem('user_name', response.data.name);
         if (response.data) {
           // Save user role in local storage
@@ -186,7 +187,7 @@ async getUserSchool() {
     try {
       // Fetch school information from the backend
       const response = await axios.get(`${API_URL}/schools/${schoolId}`);
-      console.log('School information:', response.data);
+      localStorage.setItem('user_school', JSON.stringify(response.data)); // Store in local storage for quick access
       return response.data; // Return the school details
     } catch (error) {
       console.error('Error fetching school information:', error);

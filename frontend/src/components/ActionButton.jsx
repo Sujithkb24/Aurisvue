@@ -246,12 +246,12 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
         <button 
           onClick={toggleExpand}
           className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg 
-                    transition-transform active:scale-95
+                    transition-transform active:scale-100
                     ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'}
                     text-white z-10`}
         >
-          {isExpanded ? <X size={24} /> : <Mic size={24} />}
-          <div className={`absolute inset-0 rounded-full border-2 
+          {isExpanded ? <X size={24} /> :  <img src="/AurisVue_logo.png" alt="AurisVue Logo" style={{ height: 'auto', width: 'auto' }} />}
+          <div className={`absolute inset-0 rounded-full border-0 
                         ${darkMode ? 'border-blue-500' : 'border-blue-400'}
                         transition-all duration-300`}>
           </div>
