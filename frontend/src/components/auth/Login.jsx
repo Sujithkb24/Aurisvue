@@ -145,8 +145,7 @@ const [faceAuthProgress, setFaceAuthProgress] = useState(0);
         setLoading(false);
       }
     } else {
-      // If user tries to submit the form in face auth mode, start face detection
-      setWaitingForFace(true);
+     setError('')
     }
   };
 

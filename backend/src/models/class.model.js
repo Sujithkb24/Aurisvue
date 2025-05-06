@@ -12,9 +12,17 @@ const classSessionSchema = new mongoose.Schema({
     unique: true,
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // assuming a User model exists
+    type: String,
+    ref: 'User',
     required: true,
+  },
+  videoEnabled: {
+    type: Boolean,
+    default: false
+  },
+  jitsiLink: {
+    type: String,
+    default: null
   },
   isActive: {
     type: Boolean,

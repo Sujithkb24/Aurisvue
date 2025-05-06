@@ -5,7 +5,6 @@ const userSchema = new mongoose.Schema({
   name: { type: String},
   email: { type: String, required: true },
   role: { type: String, enum: ['student', 'teacher'], default: 'student' },
-
   schoolId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',

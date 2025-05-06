@@ -247,9 +247,10 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     setIsLoading(true);
     try {
       const token = await getToken();
-      const response = await fetch(`{import.meta.env.VITE_API_URL}/classes/active`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/classes/active`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       
       if (response.ok) {
         const data = await response.json();
@@ -307,7 +308,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     setIsLoading(true);
     try {
       const token = await getToken();
-      const response = await fetch('/api/sessions', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/classes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -318,6 +319,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
           description: "Interactive sign language learning session"
         })
       });
+      
       
       if (response.ok) {
         const data = await response.json();
@@ -353,7 +355,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     setIsLoading(true);
     try {
       const token = await getToken();
-      const response = await fetch(`/api/classes/join`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/classes/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -361,6 +363,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
         },
         body: JSON.stringify({ code: classCode })
       });
+    
       
       if (response.ok) {
         const data = await response.json();
@@ -967,7 +970,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
                 ) : (
                   <div className="text-center text-gray-400">
                     <VideoIcon size={48} className="mx-auto mb-2 opacity-40" />
-                    <p>{isTeacher ? 'Enable camera to demonstrate signs' : 'Enable camera to practice signs'}</p>
+                    <p>{isTeacher ? 'Enable camera to conduct a virtual session' : 'Enable camera to ask doubts'}</p>
                   </div>
                 )}
               </div>

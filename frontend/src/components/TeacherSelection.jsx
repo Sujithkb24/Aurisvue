@@ -2,7 +2,7 @@ import { X, UserCheck } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-const TeacherSelectionModal = ({ darkMode, onClose, onSelect, schoolId }) => {
+const TeacherSelectionModal = ({ darkMode, onClose, onSelect, school }) => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -11,9 +11,10 @@ const TeacherSelectionModal = ({ darkMode, onClose, onSelect, schoolId }) => {
   useEffect(() => {
     const fetchTeachers = async () => {
       try {
+        console.log('Fetching teachers for school:', school._id);
         setLoading(true);
         setError('');
-        const response = await axios.get(`http://localhost:5000/api/schools/${schoolId}/teachers`);
+        const response = await axios.get(`http://localhost:5000/api/schools/${school._id}/teachers`);
         setTeachers(response.data.teachers);
       } catch (err) {
         console.error('Error fetching teachers:', err);
@@ -23,10 +24,10 @@ const TeacherSelectionModal = ({ darkMode, onClose, onSelect, schoolId }) => {
       }
     };
 
-    if (schoolId) {
+    if (school) {
       fetchTeachers();
     }
-  }, [schoolId]);
+  }, [school]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -46,8 +47,8 @@ const TeacherSelectionModal = ({ darkMode, onClose, onSelect, schoolId }) => {
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {teachers.map((teacher) => (
               <button
-                key={teacher._id}
-                onClick={() => onSelect(teacher._id)}
+                key={teacher.uid}
+                onClick={() => onSelect(teacher.uid)}
                 className={`w-full flex items-center p-4 rounded-lg ${
                   darkMode
                     ? 'hover:bg-gray-700 bg-gray-750'

@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes.js';
 import schoolRoutes from './routes/school.routes.js';
 import quizRoutes from './routes/quiz.routes.js';
 import chatRoutes from './routes/chat.routes.js';
+import classRoutes from './routes/class.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
 
 import cors from 'cors';
@@ -25,6 +26,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/classes', classRoutes);
 
 // Socket.io setup
 const server = http.createServer(app);

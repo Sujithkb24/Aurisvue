@@ -45,8 +45,8 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
     
     // Prepare feedback data
     const feedbackData = {
-      studentId: currentUser.id,
-      sessionId: classSession.id,
+      studentId: currentUser.uid,
+      sessionId: classSession._id,
       understood,
       timestamp: new Date().toISOString(),
       transcript: detectedSpeech,
@@ -69,7 +69,7 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
       if (response.ok) {
         // Emit feedback to teacher
         socket.emit('student_feedback', {
-          studentId: currentUser.id,
+          studentId: currentUser.uid,
           studentName: currentUser.name,
           understood,
           sessionId: classSession.id,

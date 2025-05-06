@@ -12,11 +12,13 @@ const FaceAuth = ({
   onProgressChange //callback to send progress percentage to parent
 }) => {
   const [faceDescriptor, setFaceDescriptor] = useState(null);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("Initializing...");
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [authInProgress, setAuthInProgress] = useState(false);
+  const [webcamInitialized, setWebcamInitialized] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [scanAttempted, setScanAttempted] = useState(0);
   
   // Liveness detection states
   const [livenessCheck, setLivenessCheck] = useState({
@@ -31,9 +33,8 @@ const FaceAuth = ({
   const webcamRef = useRef(null);
   const faceDetectionInterval = useRef(null);
   const canvasRef = useRef(null);
-  
-  // Store frame history for movement analysis
   const frameHistory = useRef([]);
+  const eyeStateHistory = useRef([]);
   
   // Send status messages to parent when they change
   useEffect(() => {
@@ -56,22 +57,31 @@ const FaceAuth = ({
     }
   }, [livenessCheck, onProgressChange]);
   
+  // Load face-api models
   useEffect(() => {
     const loadModels = async () => {
       try {
-        setIsLoading(true);
+        console.log("Loading face-api models...");
+        setStatusMessage("Loading face detection models...");
+        
         const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]);
-        setIsLoading(false);
-        setStatusMessage("Ready to scan your face");
+        
+        console.log("Face-api models loaded successfully");
+        setModelsLoaded(true);
+        setStatusMessage(webcamInitialized ? "Ready to scan your face" : "Models loaded, waiting for camera...");
+        
+        if (webcamInitialized) {
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Error loading face-api models:", error);
-        setIsLoading(false);
         setStatusMessage("Error loading face detection models");
+        setIsLoading(false);
       }
     };
 
@@ -84,16 +94,65 @@ const FaceAuth = ({
       }
     };
   }, []);
+  
+  // Effect to update loading state when both webcam and models are ready
+  useEffect(() => {
+    if (webcamInitialized && modelsLoaded) {
+      console.log("Both webcam and models are ready");
+      setIsLoading(false);
+      setStatusMessage("Ready to scan your face");
+    }
+  }, [webcamInitialized, modelsLoaded]);
 
+  // Clean up interval when component unmounts or on re-renders
+  useEffect(() => {
+    return () => {
+      if (faceDetectionInterval.current) {
+        clearInterval(faceDetectionInterval.current);
+        faceDetectionInterval.current = null;
+      }
+    };
+  }, [scanAttempted]);
+
+  // Simplified startFaceScanning function - more similar to original implementation
   const startFaceScanning = () => {
+    // Prevent starting if already scanning or loading
     if (isScanning || isLoading) return;
     
-    setIsScanning(true);
-    setStatusMessage("🔍 Looking for your face...");
+    console.log("Starting face scanning");
+    
+    // Increment scan attempt counter to force a clean interval
+    setScanAttempted(prev => prev + 1);
+    
+    // Clear any existing interval first
+    if (faceDetectionInterval.current) {
+      clearInterval(faceDetectionInterval.current);
+      faceDetectionInterval.current = null;
+    }
+    
+    // Check if webcam is available
+    if (!webcamRef.current || !webcamRef.current.video) {
+      setStatusMessage("⚠️ Webcam not available.");
+      return;
+    }
+    
+    // Reset the eye state history
+    eyeStateHistory.current = [];
+    
+    // Reset liveness check
     resetLivenessCheck();
     
-    // Start continuous face detection
-    faceDetectionInterval.current = setInterval(detectFace, 150);
+    // Set scanning state
+    setIsScanning(true);
+    setFaceDetected(false);
+    setStatusMessage("👀 Looking for face...");
+    
+    // Start face detection immediately - like in original implementation
+    // Using 1000ms interval like original version for more reliable detection
+    faceDetectionInterval.current = setInterval(detectFace, 1000);
+    
+    // Run detection once immediately
+    detectFace();
   };
 
   const resetLivenessCheck = () => {
@@ -108,8 +167,10 @@ const FaceAuth = ({
   };
 
   const stopFaceScanning = () => {
+    console.log("Stopping face scanning");
     setIsScanning(false);
     setStatusMessage("Face scanning stopped");
+    
     if (faceDetectionInterval.current) {
       clearInterval(faceDetectionInterval.current);
       faceDetectionInterval.current = null;
@@ -117,8 +178,9 @@ const FaceAuth = ({
   };
 
   const detectFace = async () => {
-    if (!webcamRef.current || !webcamRef.current.video || 
-        webcamRef.current.video.readyState !== 4) {
+    if (!webcamRef.current || !webcamRef.current.video) {
+      console.log("Webcam not ready in detectFace");
+      setStatusMessage("⚠️ Webcam not available.");
       return;
     }
     
@@ -131,68 +193,69 @@ const FaceAuth = ({
         .withFaceDescriptor();
       
       if (detection) {
+        console.log("Face detected!");
         setFaceDetected(true);
         
-        // Check liveness if a face is detected
-        if (livenessCheck.inProgress && !livenessCheck.passed) {
-          const livenessResult = await detectFaceAndLiveness(detection);
+        // Process detection for liveness checks
+        const livenessResult = await detectFaceAndLiveness(detection);
+        
+        if (livenessResult.isLivenessConfirmed) {
+          // Clear interval once liveness check passes
+          if (faceDetectionInterval.current) {
+            clearInterval(faceDetectionInterval.current);
+            faceDetectionInterval.current = null;
+          }
           
-          // Update liveness texture score
           setLivenessCheck(prev => ({
             ...prev,
-            textureScore: livenessResult.textureScore
+            passed: true,
+            inProgress: false
           }));
           
-          if (livenessResult.isLivenessConfirmed) {
-            setLivenessCheck(prev => ({
-              ...prev,
-              passed: true,
-              inProgress: false
-            }));
-            
-            setStatusMessage("👍 Face verification complete!");
-            
-            // Save face descriptor for login
-            setFaceDescriptor(detection.descriptor);
-    
-            // Calling the callback with the face descriptor
-            if (onFaceDetected && detection.descriptor) {
-              onFaceDetected(detection.descriptor);
-            }
-            
-            // Clear detection interval once verification is complete
-            if (faceDetectionInterval.current) {
-              clearInterval(faceDetectionInterval.current);
-              faceDetectionInterval.current = null;
-            }
-          } else {
-            if (livenessResult.isBlinkDetected) {
-              setStatusMessage("👁️ Blink detected! Completing verification...");
-            } else if (livenessCheck.blinksDetected > 0) {
-              setStatusMessage("👁️ Blink again to verify...");
-            } else {
-              setStatusMessage("Please blink for verification");
-            }
-          }
-        } else if (livenessCheck.passed) {
-          // If liveness already passed, just update descriptor
+          setStatusMessage("✅ Liveness check passed!");
+          
+          // Save face descriptor for login/signup
           setFaceDescriptor(detection.descriptor);
+  
+          // Calling the callback with the face descriptor
+          if (onFaceDetected && detection.descriptor) {
+            onFaceDetected(detection.descriptor);
+          }
+        } else if (livenessResult.isSpoofingDetected) {
+          setStatusMessage("❌ Possible spoofing detected. Please try again.");
+          resetLivenessCheck();
+        } else {
+          // Update liveness check progress
+          setLivenessCheck(prev => ({
+            ...prev,
+            blinksDetected: livenessResult.isBlinkDetected ? prev.blinksDetected + 1 : prev.blinksDetected,
+            textureScore: livenessResult.textureScore || prev.textureScore
+          }));
+          
+          // Update status message based on progress
+          if (livenessResult.textureScore < 50) {
+            setStatusMessage("⚠️ Please face the camera directly with good lighting.");
+          } else if (livenessResult.isBlinkDetected) {
+            setStatusMessage("👁️ Blink detected! Continue verification...");
+          } else if (livenessCheck.blinksDetected > 0) {
+            setStatusMessage("👁️ Please blink again to verify...");
+          } else {
+            setStatusMessage("👁️ Please blink normally to confirm liveness.");
+          }
         }
       } else {
         setFaceDetected(false);
-        setStatusMessage("🔍 Position your face in the camera");
+        setStatusMessage("👀 Looking for face... Adjust your position. Place yourself against light.");
       }
     } catch (error) {
       console.error("Face detection error:", error);
-      setStatusMessage("Error during face detection");
+      setStatusMessage("⚠️ Error during face detection");
     }
   };
 
-
+  // Existing functions remain the same
   const EAR_THRESHOLD = 0.29; // Adjusted to detect actual blinks
   const MAX_HISTORY = 10;  // Keep track of last 10 eye states
-
-  let eyeStateHistory = [];  // Persistent history storage
 
   const detectBlink = (landmarks) => {
     if (!landmarks) return { blinkDetected: false, eyeState: null, eyeHistory: [] };
@@ -213,15 +276,15 @@ const FaceAuth = ({
       const currentEyeState = avgEAR < EAR_THRESHOLD ? 'closed' : 'open';
       
       // Add to history
-      if (eyeStateHistory.length >= MAX_HISTORY) {
-        eyeStateHistory.shift(); // Remove oldest entry
+      if (eyeStateHistory.current.length >= MAX_HISTORY) {
+        eyeStateHistory.current.shift(); // Remove oldest entry
       }
-      eyeStateHistory.push({ state: currentEyeState, ear: avgEAR });
+      eyeStateHistory.current.push({ state: currentEyeState, ear: avgEAR });
       
       // Check for blink pattern (open -> closed -> open)
       // Need at least 3 frames of history
-      if (eyeStateHistory.length >= 3) {
-        const recentHistory = eyeStateHistory.slice(-5); // Look at last 5 frames
+      if (eyeStateHistory.current.length >= 3) {
+        const recentHistory = eyeStateHistory.current.slice(-5); // Look at last 5 frames
         
         // Find sequences that have eyes closed in the middle
         let blinkDetected = false;
@@ -240,7 +303,7 @@ const FaceAuth = ({
         return { 
           blinkDetected, 
           eyeState: currentEyeState, 
-          eyeHistory: eyeStateHistory,
+          eyeHistory: eyeStateHistory.current,
           earValue: avgEAR 
         };
       }
@@ -248,12 +311,12 @@ const FaceAuth = ({
       return { 
         blinkDetected: false, 
         eyeState: currentEyeState, 
-        eyeHistory: eyeStateHistory,
+        eyeHistory: eyeStateHistory.current,
         earValue: avgEAR 
       };
     } catch (error) {
       console.error("Error in blink detection:", error);
-      return { blinkDetected: false, eyeState: null, eyeHistory: eyeStateHistory };
+      return { blinkDetected: false, eyeState: null, eyeHistory: eyeStateHistory.current };
     }
   };
 
@@ -368,17 +431,6 @@ const FaceAuth = ({
         ? (livenessCheck.blinksDetected || 0) + 1 
         : (livenessCheck.blinksDetected || 0);
       
-      // Update state with new eye state history and blink count
-      setLivenessCheck(prev => ({
-        ...prev,
-        eyeStateHistory: blinkResult.eyeHistory,
-        lastEyeState: blinkResult.eyeState,
-        blinksDetected: totalBlinksDetected
-      }));
-      
-      // Use the updated blink count for further checks
-      const isBlinkDetected = newBlinkDetected || totalBlinksDetected >= 2;
-      
       // 2. Texture analysis
       const textureScore = await checkFaceTexture(webcamRef.current.video, detection);
       
@@ -388,12 +440,12 @@ const FaceAuth = ({
       // Combined liveness determination
       // Criteria: At least one blink detected, good texture score, and no spoofing
       const isTextureValid = textureScore > 55;
-      const isLivenessConfirmed = (isBlinkDetected || totalBlinksDetected >= 2) && 
+      const isLivenessConfirmed = (newBlinkDetected || totalBlinksDetected >= 2) && 
                                isTextureValid && 
                                !isSpoofingDetected;
       
       return {
-        isBlinkDetected,
+        isBlinkDetected: newBlinkDetected,
         textureScore,
         isSpoofingDetected,
         isTextureValid,
@@ -425,6 +477,26 @@ const FaceAuth = ({
     );
   };
 
+  // Handle webcam ready state
+  const handleUserMedia = () => {
+    console.log("Webcam ready and initialized");
+    setWebcamInitialized(true);
+    
+    if (modelsLoaded) {
+      setIsLoading(false);
+      setStatusMessage("Ready to scan your face");
+    } else {
+      setStatusMessage("Camera ready, loading models...");
+    }
+  };
+  
+  // Handle webcam errors
+  const handleWebcamError = (error) => {
+    console.error("Webcam error:", error);
+    setStatusMessage("Camera error. Please check permissions and try again.");
+    setIsLoading(false);
+  };
+
   return (
     <div className="flex flex-col items-center">
       <div className="relative w-full h-40 md:h-52 mb-4">
@@ -446,6 +518,8 @@ const FaceAuth = ({
             height: 240,
             facingMode: "user"
           }}
+          onUserMedia={handleUserMedia}
+          onUserMediaError={handleWebcamError}
         />
         
         {isScanning && !isLoading && (

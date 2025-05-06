@@ -54,7 +54,7 @@ export const getSchoolTeachers = async (req, res) => {
     const { schoolId } = req.params;
 
     // Find the school and populate the teachers array
-    const school = await School.findById(schoolId).populate('teachers', 'name email');
+    const school = await School.findById(schoolId).populate('teachers', 'uid name email');
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }

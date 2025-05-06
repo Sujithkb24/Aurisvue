@@ -56,11 +56,12 @@ const Dashboard = () => {
       try {
          const schoolData = JSON.parse(localStorage.getItem('user_school'));
         setSchoolInfo(schoolData);
+        console.log('School Info:', schoolData);
       } catch (error) {
         console.error("Error fetching school info:", error);
       }
     };
-  
+    
     // Call the function explicitly
     fetchSchoolInfo();
   }, []);
@@ -503,7 +504,7 @@ const Dashboard = () => {
           darkMode={darkMode}
           onClose={() => setShowTeacherModal(false)}
           onSelect={handleTeacherSelect}
-          schoolId={userSchool}
+          school={schoolInfo}
         />
       )}
     </div>

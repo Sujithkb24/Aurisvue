@@ -3,24 +3,26 @@ import { nanoid } from 'nanoid';
 
 // Create new class session (Teacher only)
 export const createClassSession = async (req, res) => {
-  try {
-    const { title, description } = req.body;
-    const userId = req.user.uid;
-
-    const newSession = await ClassSession.create({
-      title,
-      description,
-      code: nanoid(6).toUpperCase(),
-      createdBy: userId,
-    });
-
-    res.status(201).json({ session: newSession });
-  } catch (err) {
-    console.error('Error creating session:', err);
-    res.status(500).json({ message: 'Failed to create session' });
-  }
-};
-
+    try {
+      const { title, description, video = false } = req.body;
+      const userId = req.user.id;
+  
+      const session = await ClassSession.create({
+        title,
+        description,
+        createdBy: userId,
+        code: nanoid(8),
+        isActive: true,
+        videoEnabled: video
+      });
+  
+      res.status(201).json({ session });
+    } catch (error) {
+      console.error("Error creating class session:", error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+  
 // Get active session for teacher
 export const getActiveSession = async (req, res) => {
   try {
