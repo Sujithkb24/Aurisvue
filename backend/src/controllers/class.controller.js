@@ -26,7 +26,7 @@ export const createClassSession = async (req, res) => {
 // Get active session for teacher
 export const getActiveSession = async (req, res) => {
   try {
-    const userId = req.user.uid;
+    const userId = req.user._id;
     const activeSession = await ClassSession.findOne({ createdBy: userId, isActive: true });
     res.status(200).json({ activeSession });
   } catch (err) {
@@ -51,3 +51,38 @@ export const joinClassByCode = async (req, res) => {
     res.status(500).json({ message: 'Error joining session' });
   }
 };
+// controllers/class.controller.js
+
+// import ClassSession from '../models/class.model.js';
+
+export const appendTranscriptEntry = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { text, timestamp } = req.body;
+
+    const session = await ClassSession.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    session.transcripts.push({
+      text,
+      speaker: req.user.role,
+    
+      userId: req.user.id,
+      timestamp: timestamp || new Date()
+    });
+
+    await session.save();
+
+    res.status(200).json({
+      message: 'Transcript entry saved',
+      transcripts: session.transcripts
+    });
+  } catch (error) {
+    console.error('Error saving transcript:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+

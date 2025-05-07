@@ -12,22 +12,40 @@ const classSessionSchema = new mongoose.Schema({
     unique: true,
   },
   createdBy: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
   },
+  students: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }
+  ],
   videoEnabled: {
     type: Boolean,
-    default: false
+    default: false,
   },
   jitsiLink: {
     type: String,
-    default: null
+    default: null,
   },
   isActive: {
     type: Boolean,
     default: true,
   },
+  transcripts: [
+    {
+      text: { type: String, required: true },
+      speaker: { type: String }, // e.g., 'teacher' or 'student'
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      timestamp: { type: Date, default: Date.now }
+    }
+  ],
+  
   createdAt: {
     type: Date,
     default: Date.now,
