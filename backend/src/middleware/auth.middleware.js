@@ -2,7 +2,6 @@ import admin from '../config/firebase.js';
 
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
-  console.log('Token:', token); // Debugging line to check the token value
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {

@@ -108,7 +108,7 @@ class AuthService {
   
         if (response.data && response.data.user) {
           user = response.data.user;
-          console.log(response.data.user.name);
+  
           // Save user data in local storage for persistence
           localStorage.setItem('auth_user', JSON.stringify(user));
   
@@ -121,7 +121,7 @@ class AuthService {
           if (response.data.schoolId) {
             localStorage.setItem(`user_school_${user.uid}`, response.data.schoolId);
           }
-          localStorage.setItem('user_name', response.data.user.name);
+  
           // Emulate auth state change
           this._notifyAuthStateChange(user);
   
@@ -171,6 +171,31 @@ class AuthService {
   
     return user;
   }
+
+  // Get the school associated with the current user
+async getUserSchool() {
+  const user = this.getCurrentUser();
+
+  if (!user) {
+    throw new Error('No authenticated user found');
+  }
+
+  // Check local storage for the school ID
+  const schoolId = localStorage.getItem(`user_school_${user.uid}`);
+  if (schoolId) {
+    try {
+      // Fetch school information from the backend
+      const response = await axios.get(`${API_URL}/schools/${schoolId}`);
+      localStorage.setItem('user_school', JSON.stringify(response.data)); // Store in local storage for quick access
+      return response.data; // Return the school details
+    } catch (error) {
+      console.error('Error fetching school information:', error);
+      throw new Error('Failed to fetch school information');
+    }
+  }
+
+  console.warn('No school associated with the current user');
+}
 
   // Get the school associated with the current user
 async getUserSchool() {

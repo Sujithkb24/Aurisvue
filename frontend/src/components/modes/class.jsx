@@ -11,6 +11,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import FloatingActionButton from '../ActionButton';
 import FeedbackComponent from '../Feedback';
 import VideoCall from '../VideoCall';
+import ActiveSessionModal from '../ActiveSessionModal';
 
 
 const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
@@ -391,7 +392,7 @@ const stopCamera = () => {
           setClassSession(data.activeSession);
           setClassCode(data.activeSession.code);
           // Load session data
-          loadSessionData(data.activeSession.id);
+          loadSessionData(data.activeSession._id);
         }
       }
     } catch (error) {
@@ -434,6 +435,15 @@ const stopCamera = () => {
     }
   };
   
+  const handleContinueSession = (session) => {
+    // Join the room with the session code
+    joinRoom(session.code);
+    
+    // Load session data
+    loadSessionData(session._id);
+    
+    console.log(`Continuing session: ${session.name} with code: ${session.code}`);
+  };
   // Create new class session (teacher only)
   const createClassSession = async () => {
     if (userRole !== 'teacher') return;
@@ -908,6 +918,13 @@ const stopCamera = () => {
             className={`w-full px-4 py-2 rounded-lg mb-4 ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
           
+          <ActiveSessionModal
+        userRole={userRole}
+        activeSession={classSession}
+        onContinueSession={handleContinueSession}
+        onCreateNewClass={createClassSession}
+        isLoading={isLoading}
+      />
           <div className="flex justify-end space-x-3">
             <button
               onClick={onBack || goToDashboard}
@@ -1006,6 +1023,13 @@ const stopCamera = () => {
   
   return (
     <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+      <ActiveSessionModal
+        userRole={userRole}
+        activeSession={classSession}
+        onContinueSession={handleContinueSession}
+        onCreateNewClass={createClassSession}
+        isLoading={isLoading}
+      />
       {/* Custom Header */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md p-4`}>
         <div className="container mx-auto flex justify-between items-center">
