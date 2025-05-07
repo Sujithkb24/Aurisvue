@@ -45,10 +45,43 @@ const classSessionSchema = new mongoose.Schema({
       timestamp: { type: Date, default: Date.now }
     }
   ],
+  handRaises: [
+    {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      userName: {
+        type: String,
+        required: true
+      },
+      requestType: {
+        type: String,
+        enum: ['video', 'text'],
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['pending', 'accepted', 'declined'],
+        default: 'pending'
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now
+      },
+      respondedAt: {
+        type: Date
+      }
+    }
+  ],
   
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  endedAt: {
+    type: Date,
   },
 });
 
