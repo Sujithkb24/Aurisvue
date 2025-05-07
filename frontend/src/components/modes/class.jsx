@@ -10,6 +10,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import FloatingActionButton from '../ActionButton';
 import FeedbackComponent from '../Feedback';
+import VideoCall from '../VideoCall';
 
 const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   // State for class session
   const [classSession, setClassSession] = useState(null);
   const [classCode, setClassCode] = useState('');
-  const [isTeacher, setIsTeacher] = useState(false);
+  const [isTeacher, setIsTeacher] = useState(true);
   const [isMicActive, setIsMicActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [sessionSpeed, setSessionSpeed] = useState(1);
@@ -55,6 +56,8 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const sessionTimerRef = useRef(null);
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenShareRef = useRef(null);
   
   // Primary UI colors based on role
   const primaryColor = isTeacher ? 
@@ -71,6 +74,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
 
   // Check if user is authorized and set role
   useEffect(() => {
+    console.log(currentUser)
     if (!currentUser) {
       navigate('/login', { state: { redirectTo: '/class' } });
       return;
@@ -920,36 +924,74 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
       {/* Help panel */}
       {renderHelpPanel()}
   
-      {/* Main content area */}
+      {/* Main content area - Added overflow-y-auto to enable vertical scrolling */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Main teaching/learning area */}
-        <div className="flex-1 flex flex-col">
+        {/* Main teaching/learning area - Added overflow-y-auto here */}
+        <div className="flex-1 flex flex-col overflow-y-auto">
           {/* ISL Visualization and Speech Recognition Area */}
-          <div className={`flex-1 p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} flex flex-col md:flex-row gap-4`}>
-            {/* Left side: ISL Visualization */}
-            <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="text-lg font-semibold">ISL Visualization</h2>
-              </div>
-              
-              <div className="flex-1 p-4 flex items-center justify-center">
+          <div className={`p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} flex flex-col md:flex-row gap-4`}>
+  {/* Left side: ISL Visualization with Screen Share Support */}
+  <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
+    <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+      <h2 className="text-lg font-semibold">ISL Visualization</h2>
+      {isScreenSharing && (
+        <span className={`px-2 py-1 text-xs rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+          <Monitor size={14} className="inline mr-1" />
+          Screen Sharing Active
+        </span>
+      )}
+    </div>
+    
+    <div className="flex-1 p-4 relative">
+      {/* Screen Share Layer - Displayed on top when active */}
+      {isScreenSharing && (
+        <div className="absolute inset-0 z-10 flex flex-col">
+          <div className="flex-1 flex">
+            {/* Screen Share takes primary space */}
+            <div className="flex-1 bg-black bg-opacity-10 rounded-lg overflow-hidden">
+              <video 
+                ref={screenShareRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+              />
+            </div>
+            
+            {/* ISL Viewer in smaller size */}
+            <div className="w-1/3 p-2">
+              <div className={`h-full rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'} flex items-center justify-center p-2`}>
                 <ISLViewer 
                   text={detectedSpeech}
                   speed={sessionSpeed}
                   paused={isPaused}
+                  compact={true} // New prop to render in compact mode
                 />
               </div>
-              
-              {/* Speech detection display */}
-              <div className={`p-4 ${darkMode ? 'bg-gray-750' : 'bg-gray-50'} rounded-b-xl`}>
-                <p className="text-sm font-medium mb-1">
-                  {isTeacher ? 'Your Speech' : 'Teacher\'s Speech'}:
-                </p>
-                <div className={`p-3 rounded-lg min-h-12 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {detectedSpeech || 'No speech detected...'}
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Default ISL Viewer - Hidden when screen sharing is active */}
+      <div className={`flex items-center justify-center ${isScreenSharing ? 'invisible' : ''}`}>
+        <ISLViewer 
+          text={detectedSpeech}
+          speed={sessionSpeed}
+          paused={isPaused}
+        />
+      </div>
+    </div>
+    
+    {/* Speech detection display */}
+    <div className={`p-4 ${darkMode ? 'bg-gray-750' : 'bg-gray-50'} rounded-b-xl`}>
+      <p className="text-sm font-medium mb-1">
+        {isTeacher ? 'Your Speech' : 'Teacher\'s Speech'}:
+      </p>
+      <div className={`p-3 rounded-lg min-h-12 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+        {detectedSpeech || 'No speech detected...'}
+      </div>
+    </div>
+  </div>
             
             {/* Right side: Video Capture (for ISL practice) */}
             <div className={`md:w-96 w-full rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
@@ -994,6 +1036,8 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
                     videoRef={videoRef}
                     toggleVideo={toggleVideo}
                     activeStudents={activeStudents}
+                    screenShareRef={screenShareRef}
+onScreenShareChange={setIsScreenSharing}
                   />
                 </div>
               )}
@@ -1155,7 +1199,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
           </div>
         </div>
         
-        {/* Chat and student list sidebar */}
+        {/* Chat and student list sidebar - Added overflow-y-auto */}
         {showStudentsList && (
           <div className={`w-80 border-l ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} flex flex-col`}>
             <div className="p-4 border-b border-gray-700">
@@ -1164,7 +1208,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
               </h2>
             </div>
             
-            {/* Students list */}
+            {/* Students list - Added overflow-y-auto here too */}
             <div className="flex-1 overflow-y-auto p-2">
               {activeStudents.map(student => (
                 <div 

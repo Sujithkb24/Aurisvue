@@ -22,8 +22,10 @@ const VideoCall = ({
   primaryHoverColor,
   classSession,
   videoRef,
+  screenShareRef, // New prop to pass screen share reference
   toggleVideo,
-  activeStudents
+  activeStudents,
+  onScreenShareChange,
 }) => {
   const {
     isConnected,
@@ -48,6 +50,9 @@ const VideoCall = ({
   const [remoteStreams, setRemoteStreams] = useState({});
   const [pendingHandRaises, setPendingHandRaises] = useState([]);
   const [approvedStudents, setApprovedStudents] = useState([]);
+  const [tooltipText, setTooltipText] = useState('');
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   // References for media elements
   const localVideoRef = useRef(null);
@@ -118,21 +123,39 @@ const VideoCall = ({
     });
   }, [remoteStreams]);
 
+  // Synchronize isInCall state with videoEnabled prop from parent
+  useEffect(() => {
+    // If the parent component enables video but we're not in a call
+    if (videoEnabled && !isInCall) {
+      // Start a video call to match the parent state
+      handleStartCall();
+    } 
+    // If the parent component disables video but we're in a call
+    else if (!videoEnabled && isInCall) {
+      // End the call to match the parent state
+      handleEndCall();
+    }
+  }, [videoEnabled]);
+
   // Start video call
   const handleStartCall = async () => {
     try {
       const stream = await startVideoCall();
+      console.log("Video call started, stream received:", stream);
       
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        console.log("Stream assigned to localVideoRef");
       }
       
+      // Direct assignment to parent's videoRef
       if (videoRef && videoRef.current) {
         videoRef.current.srcObject = stream;
+        console.log("Stream assigned to parent videoRef");
       }
       
       setIsInCall(true);
-      toggleVideo(true);
+      // We don't call toggleVideo here because the parent already controls this
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -151,7 +174,18 @@ const VideoCall = ({
       videoRef.current.srcObject = null;
     }
     
-    toggleVideo(false);
+    // Don't call toggleVideo here, let the parent handle it
+  };
+
+  // Toggle video call based on current state
+  const handleToggleVideoCall = () => {
+    if (isInCall) {
+      handleEndCall();
+      toggleVideo(false); // Update parent's state
+    } else {
+      handleStartCall();
+      toggleVideo(true); // Update parent's state
+    }
   };
 
   // Toggle audio
@@ -169,7 +203,17 @@ const VideoCall = ({
         screenVideoRef.current.srcObject = stream;
       }
       
+      // Assign to parent's ref if available
+      if (screenShareRef && screenShareRef.current) {
+        screenShareRef.current.srcObject = stream;
+      }
+      
       setIsScreenSharing(true);
+      
+      // Notify parent component about screen sharing state
+      if (onScreenShareChange) {
+        onScreenShareChange(true);
+      }
     } catch (error) {
       console.error('Failed to start screen sharing:', error);
     }
@@ -183,7 +227,17 @@ const VideoCall = ({
       screenVideoRef.current.srcObject = null;
     }
     
+    // Clear parent's ref if available
+    if (screenShareRef && screenShareRef.current) {
+      screenShareRef.current.srcObject = null;
+    }
+    
     setIsScreenSharing(false);
+    
+    // Notify parent component about screen sharing state
+    if (onScreenShareChange) {
+      onScreenShareChange(false);
+    }
   };
 
   // Approve student's request to enable video
@@ -212,13 +266,51 @@ const VideoCall = ({
     return isTeacher || approvedStudents.includes(currentUser?.id);
   };
 
+  // Handle tooltip visibility
+  const handleShowTooltip = (text, e) => {
+    setTooltipText(text);
+    setShowTooltip(true);
+    setTooltipPosition({ 
+      x: e.currentTarget.offsetLeft + e.currentTarget.offsetWidth / 2, 
+      y: e.currentTarget.offsetTop - 30
+    });
+  };
+
+  const handleHideTooltip = () => {
+    setShowTooltip(false);
+  };
+
+  // Render tooltip
+  const renderTooltip = () => {
+    if (!showTooltip) return null;
+    
+    return (
+      <div 
+        className={`absolute z-10 px-2 py-1 text-xs rounded ${
+          darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
+        }`}
+        style={{
+          left: `${tooltipPosition.x}px`,
+          top: `${tooltipPosition.y}px`,
+          transform: 'translate(-50%, -100%)'
+        }}
+      >
+        {tooltipText}
+      </div>
+    );
+  };
+
   // Render video controls
   const renderVideoControls = () => {
     return (
-      <div className={`flex items-center justify-center gap-2 mt-2`}>
+      <div className={`flex items-center justify-center gap-2 mt-2 relative`}>
+        {renderTooltip()}
+        
         {/* Audio toggle button */}
         <button
           onClick={handleToggleAudio}
+          onMouseEnter={(e) => handleShowTooltip(isAudioEnabled ? 'Mute Microphone' : 'Unmute Microphone', e)}
+          onMouseLeave={handleHideTooltip}
           className={`p-2 rounded-full ${
             darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
           }`}
@@ -228,7 +320,9 @@ const VideoCall = ({
         
         {/* Video toggle button */}
         <button
-          onClick={isInCall ? handleEndCall : handleStartCall}
+          onClick={handleToggleVideoCall}
+          onMouseEnter={(e) => handleShowTooltip(isInCall ? 'End Video Call' : 'Start Video Call', e)}
+          onMouseLeave={handleHideTooltip}
           className={`p-2 rounded-full ${
             isInCall 
               ? 'bg-red-500 hover:bg-red-600 text-white' 
@@ -242,6 +336,8 @@ const VideoCall = ({
         {isTeacher && (
           <button
             onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
+            onMouseEnter={(e) => handleShowTooltip(isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing', e)}
+            onMouseLeave={handleHideTooltip}
             className={`p-2 rounded-full ${
               isScreenSharing 
                 ? 'bg-orange-500 hover:bg-orange-600 text-white' 
@@ -265,7 +361,7 @@ const VideoCall = ({
         <div className="space-y-2 max-h-40 overflow-y-auto">
           {pendingHandRaises.map(student => (
             <div 
-              key={student.id}
+              key={student._id || student.id}
               className={`p-2 flex items-center justify-between rounded-lg ${
                 darkMode ? 'bg-gray-700' : 'bg-white'
               }`}
@@ -279,12 +375,16 @@ const VideoCall = ({
               <div className="flex gap-1">
                 <button
                   onClick={() => approveStudentVideo(student.id)}
+                  onMouseEnter={(e) => handleShowTooltip('Approve Request', e)}
+                  onMouseLeave={handleHideTooltip}
                   className="p-1 rounded-full bg-green-500 hover:bg-green-600 text-white"
                 >
                   <CheckCircle size={16} />
                 </button>
                 <button
                   onClick={() => denyStudentVideo(student.id)}
+                  onMouseEnter={(e) => handleShowTooltip('Deny Request', e)}
+                  onMouseLeave={handleHideTooltip}
                   className="p-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
                 >
                   <XCircle size={16} />
@@ -300,20 +400,14 @@ const VideoCall = ({
   // Main component render
   return (
     <div className="flex flex-col">
-      {/* Main video display remains the same as in your original component */}
-      {isTeacher && isScreenSharing && (
-        <div className={`mt-2 p-2 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'}`}>
-          <h4 className="text-sm font-medium mb-1">Screen Share</h4>
-          <div className="relative aspect-video bg-black bg-opacity-30 rounded-lg overflow-hidden">
-            <video 
-              ref={screenVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-contain"
-            />
-          </div>
-        </div>
-      )}
+      {/* Status Debug Info */}
+      <div 
+        className={`px-2 py-1 text-xs mb-2 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+      >
+        Video State: {isInCall ? 'Active' : 'Inactive'} • 
+        Parent State: {videoEnabled ? 'Enabled' : 'Disabled'}
+        {isScreenSharing && ' • Screen Sharing: Active'}
+      </div>
       
       {/* Video controls */}
       {renderVideoControls()}
@@ -323,6 +417,7 @@ const VideoCall = ({
       
       {/* Hidden elements for internal use */}
       <video ref={localVideoRef} className="hidden" autoPlay playsInline muted />
+      <video ref={screenVideoRef} className="hidden" autoPlay playsInline />
       
       {/* Container for remote video elements */}
       <div className="hidden">

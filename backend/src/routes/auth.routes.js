@@ -141,6 +141,7 @@ router.post('/update-school', verifyToken, async (req, res) => {
 });
 
 router.get('/user-info/:uid', verifyToken, async (req, res) => {
+  console.log('Fetching user info for UID:', req.params.uid);
   const { uid } = req.params;
   try {
     const user = await User.findOne({ uid });

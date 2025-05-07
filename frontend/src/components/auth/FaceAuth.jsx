@@ -285,7 +285,7 @@ const FaceAuth = ({
   };
 
 
-  const EAR_THRESHOLD = 0.25; // Adjusted to detect actual blinks
+  const EAR_THRESHOLD = 0.29; // Adjusted to detect actual blinks
   const MAX_HISTORY = 10;  // Keep track of last 10 eye states
 
   const detectBlink = (landmarks) => {
