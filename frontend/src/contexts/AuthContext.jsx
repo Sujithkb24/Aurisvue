@@ -44,24 +44,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
-  const login = async (emailOrPhone, password = null, faceDescriptor = null) => {
-    try {
-      // Determine if we're using face auth based on whether a faceDescriptor is provided
-      const useFaceAuth = faceDescriptor !== null;
-      
-      const user = await AuthService.login(emailOrPhone, password, useFaceAuth, faceDescriptor);
-      if (user && user.uid) {
-        const role = AuthService.getUserRole(user.uid);
-        const school = AuthService.getUserSchool(user.uid);
-        setUserRole(role);
-        setUserSchool(school);
-      }
+  // AuthContext.js - Fixed version
+const login = async (emailOrPhone, password = null, faceDescriptor = null) => {
+  try {
+    console.log("Login attempt initiated");
+    // Determine if we're using face auth based on whether a faceDescriptor is provided
+    const useFaceAuth = faceDescriptor !== null;
+    
+    // Make sure to await the response from AuthService.login
+    const user = await AuthService.login(emailOrPhone, password, useFaceAuth, faceDescriptor);
+    
+    // Add debugging to verify user object is returned
+    console.log("User logged in:", user);
+    
+    // Only proceed if user exists and has a uid
+    if (user && user.uid) {
+      const role = AuthService.getUserRole(user.uid);
+      const school = AuthService.getUserSchool(user.uid);
+      setUserRole(role);
+      setUserSchool(school);
+      setCurrentUser(user);
       return user;
-    } catch (error) {
-      throw error;
+    } else {
+      console.error("Login succeeded but user object is invalid:", user);
+      throw new Error("Invalid user object returned from login");
     }
-  };
-  
+  } catch (error) {
+    console.error("Login error in AuthContext:", error);
+    throw error;
+  }
+};
   const logout = async () => {
     try {
       await AuthService.logout();
@@ -76,6 +88,7 @@ export const AuthProvider = ({ children }) => {
   
   const getToken = async () => {
     try {
+      console.log("Fetching ID token");
       return await AuthService.getIdToken();
     } catch (error) {
       console.error("Error getting ID token:", error);

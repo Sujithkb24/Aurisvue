@@ -216,6 +216,7 @@ export const SocketProvider = ({ children }) => {
   // Join a specific room
   const joinRoom = (roomId) => {
     if (socket && isConnected) {
+      console.log('Joining room:', roomId);
       socket.emit('join_room', roomId);
       setCurrentRoom(roomId);
     }

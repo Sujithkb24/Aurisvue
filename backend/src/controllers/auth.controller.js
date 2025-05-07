@@ -58,6 +58,7 @@ export const loginWithFace = async (req, res) => {
       message: 'Login successful',
       user: {
         uid: bestMatchUser.uid,
+        name: bestMatchUser.name,
         email: bestMatchUser.email,
         role: bestMatchUser.role,
         schoolId

@@ -161,7 +161,7 @@ if (!register) {
       if (!selectedSchool) {
         return setError('Please select your school');
       }
-      
+      console.log('Selected school:', selectedSchool);
       schoolId = selectedSchool;
     }
     
@@ -180,7 +180,7 @@ if (!register) {
           role, 
           true, 
           faceDescriptor, 
-          isCreatingNewSchool ? null : schoolId // Only include schoolId if joining existing school
+          isCreatingNewSchool ? null : schoolId 
         );
       } else {
         // Register with password

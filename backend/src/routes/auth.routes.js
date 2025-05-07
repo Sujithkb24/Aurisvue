@@ -4,7 +4,8 @@ import School from '../models/school.model.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import { loginWithFace, checkFaceAuthEnabled } from '../controllers/auth.controller.js';
 import admin from '../services/firebase.js';
-
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 const router = express.Router();
 
 router.post('/login-face', loginWithFace);
@@ -66,7 +67,6 @@ router.post('/register', async (req, res) => {
 router.post('/register-face', async (req, res) => {
   try {
     const { name, email, role, faceDescriptor, schoolId } = req.body;
-    
     // Validate input
     if (!email || !role || !faceDescriptor) {
       return res.status(400).json({ message: 'Email, role, and face descriptor are required' });
@@ -80,7 +80,7 @@ router.post('/register-face', async (req, res) => {
     }
     
     // Generate a unique identifier for the user (since there's no Firebase UID)
-    const uid = require('crypto').randomBytes(16).toString('hex');
+    const uid = crypto.randomBytes(16).toString('hex');
     
     // Create new user
     user = new User({

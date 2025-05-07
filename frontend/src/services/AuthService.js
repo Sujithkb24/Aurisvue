@@ -108,7 +108,7 @@ class AuthService {
   
         if (response.data && response.data.user) {
           user = response.data.user;
-  
+          console.log(response.data.user.name);
           // Save user data in local storage for persistence
           localStorage.setItem('auth_user', JSON.stringify(user));
   
@@ -121,7 +121,7 @@ class AuthService {
           if (response.data.schoolId) {
             localStorage.setItem(`user_school_${user.uid}`, response.data.schoolId);
           }
-  
+          localStorage.setItem('user_name', response.data.user.name);
           // Emulate auth state change
           this._notifyAuthStateChange(user);
   
@@ -299,6 +299,7 @@ async verifyTeacherCode(schoolId, teacherCode) {
   // Get auth token - works for both Firebase and custom auth
   async getIdToken() {
     const user = auth.currentUser;
+    console.log(user);
     if (user) {
       return await user.getIdToken();
     }

@@ -5,8 +5,8 @@ import { nanoid } from 'nanoid';
 export const createClassSession = async (req, res) => {
     try {
       const { title, description, video = false } = req.body;
-      const userId = req.user.id;
-  
+      const userId = req.user.uid;
+      console.log(userId)
       const session = await ClassSession.create({
         title,
         description,
@@ -39,7 +39,7 @@ export const getActiveSession = async (req, res) => {
 export const joinClassByCode = async (req, res) => {
   try {
     const { code } = req.body;
-    const session = await ClassSession.findOne({ code: code.toUpperCase(), isActive: true });
+    const session = await ClassSession.findOne({ code: code, isActive: true });
 
     if (!session) {
       return res.status(404).json({ message: 'Invalid or expired class code' });

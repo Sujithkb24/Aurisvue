@@ -1,8 +1,8 @@
-import React,{ useState, useEffect, useRef } from 'react';
+import React,{ useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Mic, MicOff, MessageSquare, ChevronUp, ChevronDown, Pause, Play, 
   RefreshCcw, Clock, Share2, Video, Save, BarChart2, Hand, Users,
-  VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle
+  VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle, Monitor
 } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,12 +12,14 @@ import FloatingActionButton from '../ActionButton';
 import FeedbackComponent from '../Feedback';
 import VideoCall from '../VideoCall';
 
+
 const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
   const navigate = useNavigate();
   const { teacherId } = useParams();
   const { currentUser, userRole, getToken } = useAuth();
   const { socket } = useSocket();
   
+  const { joinRoom, isConnected, currentRoom } = useSocket();
   // State for class session
   const [classSession, setClassSession] = useState(null);
   const [classCode, setClassCode] = useState('');
@@ -173,76 +175,203 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
       }
     };
   }, [socket, currentUser, userRole]);
+  const addToTranscriptHistory = (text) => {
+    setTranscriptHistory(prev => [
+      { text, timestamp: new Date().toLocaleTimeString() },
+      ...prev.slice(0, 49) // Keep only the last 50 entries
+    ]);
+  };
+
+  const startSessionTimer = () => {
+    sessionTimerRef.current = setInterval(() => {
+      sessionTimeRef.current += 1;
+      // Could update a UI element showing session time
+    }, 1000);
+  };
   
-  // Initialize Web Speech API
-  useEffect(() => {
-    // Check if browser supports Web Speech API
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+// Stop camera
+const stopCamera = () => {
+  // Stop all tracks in the media stream
+  if (mediaStreamRef.current) {
+    mediaStreamRef.current.getTracks().forEach(track => track.stop());
+    mediaStreamRef.current = null;
+  }
+  
+  // Clear video source
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+  
+  setVideoEnabled(false);
+};
+
+  const saveTranscriptToBackend = async (transcript) => {
+    if (!classSession) return;
+    
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/sessions/${classSession.id}/transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: transcript,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        console.error("Error saving transcript:", await response.json());
+      }
+    } catch (error) {
+      console.error("Error saving transcript:", error);
+    }
+  };
+  const initRecognition = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
       setError("Your browser doesn't support speech recognition. Please use Chrome or Edge.");
-      return;
+      return null;
     }
     
-    // Initialize speech recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'en-US'; // Default language
+    // Create a new recognition instance
+    const rec = new SpeechRecognition();
     
-    // Handle speech recognition results
-    recognitionRef.current.onresult = (event) => {
+    // Configuration for better speech detection
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 3; // Try to get more alternatives for better detection
+    
+    // Set shorter timeout for periodic restart to avoid detection issues
+    const RESTART_INTERVAL = 10000; // 10 seconds
+    let restartTimer = null;
+    
+    // Track no-speech errors
+    let noSpeechCount = 0;
+    const MAX_NO_SPEECH_ERRORS = 3;
+  
+    rec.onstart = () => {
+      console.log('Speech recognition started');
+      setIsMicActive(true);
+      setError(null);
+      noSpeechCount = 0;
+      
+      // Set up periodic restart to avoid detection issues
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(() => {
+        if (isMicActive && !isPaused) {
+          console.log('Periodic recognition restart for better detection');
+          try {
+            rec.stop(); // Gracefully stop to trigger clean restart
+          } catch (e) {
+            console.warn('Error during periodic restart:', e);
+          }
+        }
+      }, RESTART_INTERVAL);
+    };
+  
+    rec.onresult = (event) => {
       if (isPaused) return;
       
+      // Reset no-speech counter when we get results
+      noSpeechCount = 0;
+      
+      const lastResult = event.results[event.results.length - 1];
       const transcript = Array.from(event.results)
-        .map(result => result[0])
-        .map(result => result.transcript)
+        .map(r => r[0].transcript)
         .join('');
       
       setDetectedSpeech(transcript);
-      
-      // Emit speech to all connected students
+  
       if (isTeacher && socket) {
         socket.emit('teacher_speech', {
           text: transcript,
-          isFinal: event.results[0].isFinal,
-          sessionId: classSession?.id
+          isFinal: lastResult.isFinal,
+          sessionId: classSession?.id,
         });
       }
-      
-      // Add to history when we have a final result
-      if (event.results[0].isFinal) {
+  
+      if (lastResult.isFinal) {
         addToTranscriptHistory(transcript);
-        
-        // Save transcript to backend
-        if (isTeacher) {
-          saveTranscriptToBackend(transcript);
-        }
+        if (isTeacher) saveTranscriptToBackend(transcript);
       }
     };
-    
-    recognitionRef.current.onerror = (event) => {
+  
+    rec.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        setError('Microphone access denied. Please allow microphone access to use this feature.');
+      
+      switch (event.error) {
+        case 'network':
+          setError('Network error: Checking connection...');
+          try {
+            rec.stop(); // Gracefully stop to allow restart
+          } catch (e) {
+            console.warn('Failed to stop recognition after network error:', e);
+          }
+          break;
+          
+        case 'not-allowed':
+          setError('Microphone access denied. Please allow microphone access.');
+          setIsMicActive(false);
+          break;
+          
+        case 'no-speech':
+          noSpeechCount++;
+          console.log(`No speech detected (${noSpeechCount}/${MAX_NO_SPEECH_ERRORS})`);
+          
+          if (noSpeechCount >= MAX_NO_SPEECH_ERRORS) {
+            setError('No speech detected. Please check your microphone settings or speak louder.');
+            
+            // After multiple no-speech errors, let's try to restart with new settings
+            try {
+              rec.stop();
+            } catch (e) {
+              console.warn('Failed to stop recognition after no-speech error:', e);
+            }
+          } else {
+            // Don't show error for occasional no-speech events
+            // They're normal and expected
+          }
+          break;
+          
+        case 'aborted':
+          // Ignore aborted event during cleanup
+          break;
+          
+        default:
+          setError(`Recognition error: ${event.error}`);
+          setIsMicActive(false);
+      }
+    };
+  
+    rec.onend = () => {
+      console.log('Speech recognition ended');
+      clearTimeout(restartTimer);
+      
+      // Only auto-restart if we're still supposed to be active
+      if (!isPaused && isMicActive) {
+        console.log('Attempting to restart speech recognition...');
+        
+        setTimeout(() => {
+          try {
+            rec.start();
+            console.log('Successfully restarted speech recognition');
+          } catch (e) {
+            console.error('Failed to restart recognition after end:', e);
+            setError('Failed to restart speech recognition. Please try again manually.');
+            setIsMicActive(false);
+          }
+        }, 300); // Short delay to ensure complete cleanup
+      } else {
         setIsMicActive(false);
       }
     };
-    
-    return () => {
-      // Clean up
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      
-      // Clear session timer
-      if (sessionTimerRef.current) {
-        clearInterval(sessionTimerRef.current);
-      }
-      
-      // Stop camera if active
-      stopCamera();
-    };
-  }, [isTeacher, isPaused, socket, classSession]);
+  
+    return rec;
+  }, [isTeacher, socket, classSession, isPaused, isMicActive, addToTranscriptHistory, saveTranscriptToBackend]);
   
   // Check for active session (teacher only)
   const checkForActiveSession = async () => { 
@@ -308,10 +437,11 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   // Create new class session (teacher only)
   const createClassSession = async () => {
     if (userRole !== 'teacher') return;
-    
+  
     setIsLoading(true);
     try {
       const token = await getToken();
+      console.log(token)
       const response = await fetch(`${import.meta.env.VITE_API_URL}/classes`, {
         method: 'POST',
         headers: {
@@ -323,23 +453,18 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
           description: "Interactive sign language learning session"
         })
       });
-      
-      
+  
       if (response.ok) {
         const data = await response.json();
         setClassSession(data.session);
         setClassCode(data.session.code);
-        
-        // Join the session room via socket
-        socket.emit('join_session', {
-          sessionId: data.session.id,
-          userId: currentUser.id,
-          role: 'teacher'
-        });
-        
+  
+        // Join the session room
+        joinRoom(data.session.code);
+  
         // Start session timer
         startSessionTimer();
-        
+  
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Failed to create class session');
@@ -352,12 +477,14 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     }
   };
   
+  
   // Join class session (student only)
   const joinClassSession = async () => {
     if (userRole !== 'student' || !classCode.trim()) return;
-    
+  
     setIsLoading(true);
     try {
+      console.log(currentUser._id)
       const token = await getToken();
       const response = await fetch(`${import.meta.env.VITE_API_URL}/classes/join`, {
         method: 'POST',
@@ -367,23 +494,18 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
         },
         body: JSON.stringify({ code: classCode })
       });
-    
-      
+  
       if (response.ok) {
         const data = await response.json();
         setClassSession(data.session);
         setShowJoinModal(false);
-        
-        // Join the session room via socket
-        socket.emit('join_session', {
-          sessionId: data.session.id,
-          userId: currentUser.id,
-          role: 'student'
-        });
-        
+  
+        // Join the session room
+        joinRoom(data.session.code);
+  
         // Load session data
-        loadSessionData(data.session.id);
-        
+        loadSessionData(data.session._id);
+  
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Invalid class code');
@@ -396,78 +518,36 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     }
   };
   
+  
   // Add to transcript history
-  const addToTranscriptHistory = (text) => {
-    setTranscriptHistory(prev => [
-      { text, timestamp: new Date().toLocaleTimeString() },
-      ...prev.slice(0, 49) // Keep only the last 50 entries
-    ]);
-  };
+  
   
   // Save transcript to backend
-  const saveTranscriptToBackend = async (transcript) => {
-    if (!classSession) return;
-    
-    try {
-      const token = await getToken();
-      const response = await fetch(`/api/sessions/${classSession.id}/transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          text: transcript,
-          timestamp: new Date().toISOString()
-        })
-      });
-      
-      if (!response.ok) {
-        console.error("Error saving transcript:", await response.json());
-      }
-    } catch (error) {
-      console.error("Error saving transcript:", error);
-    }
-  };
   
-  // Start speech recognition
-  const startMic = () => {
-    if (!classSession && isTeacher) {
-      createClassSession();
-    }
+  const stopMic = useCallback(() => {
+    setIsPaused(true);
+    setError(null);
     
-    try {
-      recognitionRef.current.start();
-      setIsMicActive(true);
-      setIsPaused(false);
-      
-      // Notify students that teaching has started
-      if (isTeacher && socket) {
-        socket.emit('session_update', {
-          type: 'started',
-          sessionId: classSession?.id
-        });
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn('Stop failed, trying abort:', e);
+        try {
+          recognitionRef.current.abort();
+        } catch (e2) {
+          console.warn('Abort also failed:', e2);
+        }
       }
-      
-      // Start session timer if not already running
-      if (!sessionTimerRef.current) {
-        startSessionTimer();
-      }
-    } catch (error) {
-      console.error('Failed to start speech recognition:', error);
+      setIsMicActive(false);
+      recognitionRef.current = null;
     }
-  };
-  
-  // Stop speech recognition
-  const stopMic = () => {
-    recognitionRef.current.stop();
-    setIsMicActive(false);
     
     // Notify students that teaching has stopped
-    if (isTeacher && socket) {
+    if (isTeacher && socket && classSession) {
       socket.emit('session_update', {
         type: 'stopped',
-        sessionId: classSession?.id
+        sessionId: classSession.id,
       });
     }
     
@@ -476,7 +556,90 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
       clearInterval(sessionTimerRef.current);
       sessionTimerRef.current = null;
     }
-  };
+    
+    // Stop camera stream
+    stopCamera();
+  }, [stopCamera, isTeacher, socket, classSession]);
+  // Start speech recognition
+  const startMic = useCallback(async () => {
+    // First, check if microphone is accessible
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Check if audio is actually working by creating an analyzer
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      microphone.connect(analyser);
+      
+      // We don't need to keep this stream - just testing mic access
+      stream.getTracks().forEach(track => track.stop());
+      microphone.disconnect();
+      audioContext.close();
+      
+      console.log('Microphone check successful');
+    } catch (err) {
+      console.error('Microphone check failed:', err);
+      setError(`Microphone access error: ${err.message}. Please check browser permissions.`);
+      return;
+    }
+    
+    // Clean up any existing recognition instance
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn('Error stopping existing recognition:', e);
+        try {
+          recognitionRef.current.abort();
+        } catch (e2) {
+          console.warn('Error aborting existing recognition:', e2);
+        }
+      }
+      recognitionRef.current = null;
+    }
+    
+    // Create a fresh recognition instance
+    recognitionRef.current = initRecognition();
+    if (!recognitionRef.current) {
+      setError('Could not initialize speech recognition');
+      return;
+    }
+    // Ensure class session exists
+    if (isTeacher && !classSession) {
+      try {
+        await createClassSession();
+      } catch (e) {
+        setError('Failed to create class session.');
+        return;
+      }
+    }
+    
+    // Network connectivity check before starting
+    if (!navigator.onLine) {
+      setError('No internet connection detected. Please check your network and try again.');
+      return;
+    }
+    
+    try {
+      // Start recognition with fresh instance
+      recognitionRef.current.start();
+      setIsMicActive(true);
+      setIsPaused(false);
+      setError(null);
+      
+      if (isTeacher && socket && classSession) {
+        socket.emit('session_update', { type: 'started', sessionId: classSession.id });
+      }
+      
+      if (!sessionTimerRef.current) startSessionTimer();
+    } catch (e) {
+      console.error('Speech recognition start failed:', e);
+      setError(`Failed to start speech recognition: ${e.message}`);
+      setIsMicActive(false);
+    }
+  }, [initRecognition, isTeacher, socket, classSession, createClassSession, startSessionTimer]);
+  
   
   // Toggle pause
   const togglePause = () => {
@@ -502,13 +665,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   };
   
   // Start session timer
-  const startSessionTimer = () => {
-    sessionTimerRef.current = setInterval(() => {
-      sessionTimeRef.current += 1;
-      // Could update a UI element showing session time
-    }, 1000);
-  };
-  
+ 
   // Change playback speed (teacher only)
   const changeSpeed = (speed) => {
     if (!isTeacher) return;
@@ -587,9 +744,9 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
       socket.emit('session_update', {
         type: 'hand_raised',
         value: newHandState,
-        userId: currentUser.id,
+        userId: currentUser._id,
         userName: currentUser.name,
-        sessionId: classSession.id
+        sessionId: classSession._id
       });
     }
   };
@@ -627,21 +784,6 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     }
   };
   
-  // Stop camera
-  const stopCamera = () => {
-    // Stop all tracks in the media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    
-    // Clear video source
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    
-    setVideoEnabled(false);
-  };
   
   // Toggle history panel
   const toggleHistory = () => {
@@ -658,13 +800,14 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     if (!message.trim() || !classSession) return;
     
     const newMessage = {
-      sender: currentUser.id,
+      sender: currentUser._id,
       senderName: currentUser.name || currentUser.displayName,
       senderRole: userRole,
       text: message,
       timestamp: new Date().toISOString(),
       sessionId: classSession.id
     };
+
     
     // Add to local state
     setMessages(prev => [...prev, {
@@ -1240,15 +1383,15 @@ onScreenShareChange={setIsScreenSharing}
                   <div className="space-y-2">
                     {messages.map((msg, index) => (
                       <div key={index} className={`p-2 rounded-lg ${
-                        msg.sender === currentUser.id
+                        msg.sender === currentUser._id
                           ? `${primaryColor} text-white`
                           : darkMode ? 'bg-gray-700' : 'bg-white'
                       }`}>
                         <div className="flex justify-between items-center text-xs mb-1">
-                          <span className={msg.sender === currentUser.id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                          <span className={msg.sender === currentUser._id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
                             {msg.senderName} ({msg.senderRole})
                           </span>
-                          <span className={msg.sender === currentUser.id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                          <span className={msg.sender === currentUser._id ? 'text-white' : darkMode ? 'text-gray-400' : 'text-gray-500'}>
                             {msg.timestamp}
                           </span>
                         </div>
