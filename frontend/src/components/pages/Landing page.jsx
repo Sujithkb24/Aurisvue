@@ -152,16 +152,17 @@ const Landingpage = () => {
 // For demonstration purposes only, settings panel simplified component
 const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`w-full max-w-md rounded-lg shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 mx-4`}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+      <div className={`w-full sm:max-w-md rounded-lg shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} p-4`}>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">ISL Translator Settings</h2>
+          <h2 className="text-lg sm:text-xl font-bold">ISL Translator Settings</h2>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-700">
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="space-y-4">
+          {/* Dark Mode Toggle */}
           <div className="flex justify-between items-center">
             <span>Dark Mode</span>
             <button 
@@ -171,11 +172,14 @@ const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
               {darkMode ? 'Enabled' : 'Disabled'}
             </button>
           </div>
-          
+
+          {/* Platform Info */}
           <div className="pt-2 border-t border-gray-700">
             <h3 className="font-medium mb-2">Platform Settings</h3>
             <div className={`p-3 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-              <p>Current platform: <span className="font-medium">{platform}</span></p>
+              <p className="text-sm sm:text-base">
+                Current platform: <span className="font-medium">{platform}</span>
+              </p>
               {platform === 'web' && (
                 <p className="mt-2 text-sm text-yellow-400 flex items-center">
                   <AlertTriangle size={16} className="mr-1" />
@@ -184,7 +188,8 @@ const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
               )}
             </div>
           </div>
-          
+
+          {/* Translation Settings */}
           <div className="pt-2 border-t border-gray-700">
             <h3 className="font-medium mb-2">Translation Settings</h3>
             <div className="space-y-2">
@@ -196,7 +201,7 @@ const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
                   <option>High</option>
                 </select>
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <span>Auto-start on videos</span>
                 <button className={`px-3 py-1 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
@@ -206,7 +211,7 @@ const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
             </div>
           </div>
         </div>
-        
+
         <div className="mt-6 flex justify-end">
           <button 
             onClick={onClose}
@@ -219,5 +224,6 @@ const SettingsPanel = ({ darkMode, toggleDarkMode, onClose, platform }) => {
     </div>
   );
 };
+
 
 export default Landingpage;

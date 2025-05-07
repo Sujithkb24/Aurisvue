@@ -52,42 +52,44 @@ const Quiz = ({ darkMode = true }) => {
     try {
       setLoading(true);
       setError(null);
-      setUserAnswers([]);
-      setCurrentQuestion(0);
-      setScore(0);
-      setTimer(0);
-      setQuizCompleted(false);
-      setFeedback(null);
-  
+      
       const response = await axios.get(`${API_BASE_URL}/questions`, {
         params: { difficulty, count: questionCount }
       });
   
-      console.log("Response Data:", response.data); // Debugging line to check the response
+      // Log the full response for debugging
+      console.log("API Response:", JSON.stringify(response.data, null, 2));
   
-      // Parse the response into the expected format
-      const parsedQuestions = response.data.quiz.split("\n\n").map((block) => {
-        const lines = block.split("\n");
-        const questionLine = lines[0];
-        const options = lines.slice(1, -1).map((line) => line.trim().slice(3)); // Remove "a) ", "b) ", etc.
-        const answerLine = lines[lines.length - 1];
-        const answerIndex = options.findIndex((option) =>
-          answerLine.includes(option)
-        );
+      // Extract quiz data
+      const quizData = response.data?.quiz || response.data;
+      
+      if (!quizData || !quizData.questions || !quizData.answers) {
+        throw new Error('Invalid quiz data: Missing questions or answers');
+      }
+  
+      // Transform questions and answers into the expected format
+      const parsedQuestions = quizData.questions.map((question, index) => {
+        const answerData = quizData.answers[index];
+        
+        if (!answerData) {
+          throw new Error(`No answer found for question ${index + 1}`);
+        }
   
         return {
-          question: questionLine.trim(),
-          options,
-          answerIndex
+          question: question.text,
+          // The API sends options as strings directly, not as objects
+          options: question.options,
+          answerIndex: answerData.correctIndex,
+          correctAnswer: answerData.correctAnswer
         };
       });
   
       setQuestions(parsedQuestions);
       setLoading(false);
-      setTimerActive(true); // Start timer when questions load
+      setTimerActive(true);
     } catch (err) {
       console.error("Error fetching questions:", err);
-      setError("Failed to load quiz questions. Please try again later.");
+      setError(err.message || "Failed to load quiz. Please try again.");
       setLoading(false);
     }
   };
@@ -214,7 +216,7 @@ const Quiz = ({ darkMode = true }) => {
           <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${darkMode ? 'bg-red-900' : 'bg-red-100'}`}>
             <X size={24} className="text-red-500" />
           </div>
-          <h2 className="text-xl font-semibold mb-4">Oops! Something went wrong</h2>
+          <h2 className="te   xt-xl font-semibold mb-4">Oops! Something went wrong</h2>
           <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
           <button 
             onClick={fetchQuestions}
@@ -326,175 +328,175 @@ const Quiz = ({ darkMode = true }) => {
 
   // Active quiz state
   return (
-    <div className={`max-w-3xl mx-auto p-6 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
-      {/* Quiz Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">ISL Quiz</h2>
-          <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
-            {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty
-          </p>
-        </div>
+    <div className={`min-h-screen w-full p-8 flex flex-col items-center justify-center transition-all duration-500 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white' : 'bg-gradient-to-br from-white via-slate-100 to-gray-200 text-gray-800'}`}>
+      <div className={`w-full max-w-5xl p-8 rounded-3xl shadow-xl backdrop-blur-xl bg-opacity-50 border border-gray-700 ${darkMode ? 'bg-gray-900/60 text-white' : 'bg-white/60 text-gray-900'}`}>
         
-        <div className="flex gap-4">
-          <div className={`flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            <Clock size={18} className="mr-1" />
-            <span>{formatTime(timer)}</span>
+        {/* Quiz Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-4xl font-extrabold tracking-wide neon-text">⚡ ISL Quiz</h2>
+            <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty
+            </p>
           </div>
-          
-          <div className={`px-3 py-1 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-            Question {currentQuestion + 1}/{questions.length}
+  
+          <div className="flex gap-6 items-center">
+            <div className={`flex items-center gap-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              <Clock size={20} />
+              <span>{formatTime(timer)}</span>
+            </div>
+            <div className={`px-4 py-1 rounded-full text-sm font-semibold ${darkMode ? 'bg-gray-800' : 'bg-gray-300'}`}>
+              Q{currentQuestion + 1}/{questions.length}
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Progress Bar */}
-      <div className={`w-full h-2 rounded-full mb-6 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-        <div 
-          className="h-2 rounded-full bg-blue-500"
-          style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-        ></div>
-      </div>
-      
-      {/* Question Display */}
-      {questions.length > 0 && (
-        <div>
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold mb-4">{questions[currentQuestion].question}</h3>
-            
-            <div className="space-y-3">
-              {questions[currentQuestion].options.map((option, index) => {
-                const isSelected = userAnswers[currentQuestion]?.selectedAnswer === index;
-                
-                return (
-                  <div 
-                    key={index} 
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      isSelected 
-                        ? (darkMode 
-                            ? 'bg-blue-900 border-blue-700' 
-                            : 'bg-blue-100 border-blue-500') 
-                        : (darkMode 
-                            ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' 
-                            : 'bg-white border-gray-300 hover:bg-gray-50')
-                    }`}
-                    onClick={() => handleAnswerSelect(index)}
-                  >
-                    <div className="flex items-center">
-                      <div className={`w-6 h-6 flex items-center justify-center rounded-full mr-3 ${
-                        isSelected 
-                          ? 'bg-blue-500 text-white' 
-                          : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
-                      }`}>
-                        {['A', 'B', 'C', 'D'][index]}
+  
+        {/* Progress Bar */}
+        <div className={`w-full h-3 rounded-full overflow-hidden mb-8 ${darkMode ? 'bg-gray-800' : 'bg-gray-300'}`}>
+          <div 
+            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
+            style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
+          ></div>
+        </div>
+  
+        {/* Question */}
+        {questions.length > 0 && (
+          <div>
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-6">{questions[currentQuestion].question}</h3>
+  
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {questions[currentQuestion].options.map((option, index) => {
+                  const isSelected = userAnswers[currentQuestion]?.selectedAnswer === index;
+  
+                  return (
+                    <div 
+                      key={index}
+                      className={`p-5 rounded-xl border cursor-pointer transition-all duration-200 shadow-md hover:scale-105 ${
+                        isSelected
+                          ? (darkMode ? 'bg-blue-900 border-blue-700' : 'bg-blue-100 border-blue-500')
+                          : (darkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : 'bg-white border-gray-300 hover:bg-gray-100')
+                      }`}
+                      onClick={() => handleAnswerSelect(index)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-8 h-8 text-sm font-bold flex items-center justify-center rounded-full ${
+                          isSelected ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-black')
+                        }`}>
+                          {['A', 'B', 'C', 'D'][index]}
+                        </div>
+                        <span>{option}</span>
                       </div>
-                      <span>{option}</span>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-6">
-            <button
-              onClick={goToPreviousQuestion}
-              disabled={currentQuestion === 0}
-              className={`px-4 py-2 rounded flex items-center ${
-                currentQuestion === 0
-                  ? 'opacity-50 cursor-not-allowed ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200')
-                  : (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300')
-              }`}
-            >
-              <ChevronLeft size={20} className="mr-1" /> Previous
-            </button>
-            
-            <button
-              onClick={goToNextQuestion}
-              disabled={userAnswers[currentQuestion] === undefined}
-              className={`px-4 py-2 rounded flex items-center ${
-                userAnswers[currentQuestion] === undefined
-                  ? 'opacity-50 cursor-not-allowed ' + (darkMode ? 'bg-blue-800' : 'bg-blue-300')
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
-            >
-              {currentQuestion < questions.length - 1 ? (
-                <>Next <ChevronRight size={20} className="ml-1" /></>
-              ) : (
-                <>Submit Quiz <Check size={20} className="ml-1" /></>
-              )}
-            </button>
-          </div>
-          
-          {/* Helper Text */}
-          {userAnswers[currentQuestion] === undefined && (
-            <div className="text-center mt-4 text-sm text-gray-400 flex justify-center items-center">
-              <HelpCircle size={14} className="mr-1" />
-              Select an answer to continue
+  
+            {/* Navigation */}
+            <div className="flex justify-between items-center mt-6">
+              <button
+                onClick={goToPreviousQuestion}
+                disabled={currentQuestion === 0}
+                className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition ${
+                  currentQuestion === 0
+                    ? 'opacity-50 cursor-not-allowed ' + (darkMode ? 'bg-gray-700' : 'bg-gray-300')
+                    : (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300')
+                }`}
+              >
+                <ChevronLeft size={20} /> Previous
+              </button>
+  
+              <button
+                onClick={goToNextQuestion}
+                disabled={userAnswers[currentQuestion] === undefined}
+                className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition ${
+                  userAnswers[currentQuestion] === undefined
+                    ? 'opacity-50 cursor-not-allowed ' + (darkMode ? 'bg-blue-800' : 'bg-blue-300')
+                    : 'bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white'
+                }`}
+              >
+                {currentQuestion < questions.length - 1 ? (
+                  <>Next <ChevronRight size={20} /></>
+                ) : (
+                  <>Submit <Check size={20} /></>
+                )}
+              </button>
             </div>
-          )}
-        </div>
-      )}
-      
-      {/* Quiz Options */}
-      <div className={`mt-8 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div>
-            <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Difficulty
-            </label>
-            <select
-              value={difficulty}
-              onClick={(e) => setDifficulty(e.target.value)}
-              disabled={timerActive}
-              className={`px-3 py-2 rounded ${
-                darkMode 
-                  ? 'bg-gray-700 border-gray-600' 
-                  : 'bg-white border-gray-300'
-              } ${timerActive ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
+  
+            {/* Hint */}
+            {userAnswers[currentQuestion] === undefined && (
+              <div className="text-center mt-4 text-sm text-gray-400 flex justify-center items-center">
+                <HelpCircle size={16} className="mr-2" />
+                Select an answer to continue
+              </div>
+            )}
           </div>
-          
-          <div>
-            <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Questions
-            </label>
-            <select
-              value={questionCount}
-              onChange={(e) => setQuestionCount(Number(e.target.value))}
-              disabled={timerActive}
-              className={`px-3 py-2 rounded ${
-                darkMode 
-                  ? 'bg-gray-700 border-gray-600' 
-                  : 'bg-white border-gray-300'
-              } ${timerActive ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
-              <option value={3}>3 Questions</option>
-              <option value={6}>6 Questions</option>
-              <option value={10}>10 Questions</option>
-              <option value={15}>15 Questions</option>
-            </select>
+        )}
+  
+        {/* Settings */}
+        <div className={`mt-12 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
+            {/* Difficulty */}
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Difficulty
+              </label>
+              <select
+                value={difficulty}
+                onClick={(e) => setDifficulty(e.target.value)}
+                disabled={timerActive}
+                className={`px-4 py-2 rounded-lg ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-700 text-white' 
+                    : 'bg-white border-gray-300 text-gray-800'
+                } ${timerActive ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+  
+            {/* Question Count */}
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Questions
+              </label>
+              <select
+                value={questionCount}
+                onChange={(e) => setQuestionCount(Number(e.target.value))}
+                disabled={timerActive}
+                className={`px-4 py-2 rounded-lg ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-700 text-white' 
+                    : 'bg-white border-gray-300 text-gray-800'
+                } ${timerActive ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <option value={3}>3 Questions</option>
+                <option value={6}>6 Questions</option>
+                <option value={10}>10 Questions</option>
+                <option value={15}>15 Questions</option>
+              </select>
+            </div>
+  
+            {/* Restart */}
+            {timerActive && (
+              <button
+                onClick={restartQuiz}
+                className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition ${
+                  darkMode ? 'bg-red-800 hover:bg-red-700 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'
+                }`}
+              >
+                <RefreshCw size={18} /> Restart
+              </button>
+            )}
           </div>
-          
-          {timerActive && (
-            <button
-              onClick={restartQuiz}
-              className={`px-4 py-2 rounded flex items-center ${
-                darkMode ? 'bg-red-900 hover:bg-red-800' : 'bg-red-100 hover:bg-red-200'
-              } ${darkMode ? 'text-red-200' : 'text-red-700'}`}
-            >
-              <RefreshCw size={18} className="mr-2" /> Restart Quiz
-            </button>
-          )}
         </div>
       </div>
     </div>
   );
+  
 };
 
 export default Quiz;
