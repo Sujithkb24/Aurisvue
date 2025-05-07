@@ -250,31 +250,36 @@ const FaceAuth = ({
   };
 
   const detectFace = async () => {
-
-    
     if (!webcamRef.current || !webcamRef.current.video) {
       setStatusMessage("⚠️ Webcam not available.");
       return null;
     }
-
+  
     try {
       const video = webcamRef.current.video;
       const detection = await faceapi
         .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceDescriptor();
-
+  
       if (!detection) {
         setFaceDetected(false);
         return null;
       }
-
+  
       // Face detected
       setFaceDetected(true);
       
-      // Extract face descriptor for later use
+      // Check for spoofing immediately after face detection
+      const isSpoofing = await detectSpoofing(video, detection);
+      
+      if (isSpoofing) {
+        setStatusMessage("⚠️ Possible spoofing detected. Please use your real face.");
+        return null; // Return null if spoofing is detected
+      }
+      
+      // If no spoofing detected, continue with the face descriptor
       setFaceDescriptor(Array.from(detection.descriptor));
-
       return detection;
     } catch (error) {
       console.error("Face detection error:", error);
