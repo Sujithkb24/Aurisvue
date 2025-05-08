@@ -75,6 +75,33 @@ export default function registerSocketHandlers(io) {
       currentRoomId = null;
     });
 
+    socket.on('teacher_speech', (data) => {
+      if (!data.sessionId) return;
+      
+      // Broadcast to the session room (using sessionId as the room name)
+      socket.to(data.sessionId).emit('teacher_speech', data);
+      // Also broadcast to session code if available
+      if (data.room) {
+        socket.to(data.room).emit('teacher_speech', data);
+      }
+      
+      console.log(`Teacher speech broadcast to session ${data.sessionId}:`, 
+        data.text.substring(0, 30) + (data.text.length > 30 ? '...' : ''));
+    });
+    
+    // Student transcript handler
+    socket.on('student_transcript', (data) => {
+      if (!data.sessionId) return;
+      
+      // Find the teacher in the room and send only to them
+      // This requires tracking who the teacher is for each session
+      // For simplicity, broadcasting to the whole room
+      socket.to(data.sessionId).emit('student_transcript', data);
+      
+      console.log(`Student transcript sent for session ${data.sessionId}:`, 
+        data.text.substring(0, 30) + (data.text.length > 30 ? '...' : ''));
+    });
+    
     // WebRTC signaling: video call offer
     socket.on('video_offer', ({ offer, roomId, target }) => {
       if (target) {

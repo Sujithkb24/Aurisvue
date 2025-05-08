@@ -95,7 +95,30 @@ const remoteScreensRef = useRef({});
           console.log('Received ISL response:', data);
           setIslResponse(data);
         });
+        socketInstance.on('disconnect', () => {
+          console.log('Socket disconnected');
+          setIsConnected(false);
+        });
         
+        socketInstance.on('error', (error) => {
+          console.error('Socket error:', error);
+        });
+        
+        // Listen for specific events
+        socketInstance.on('teacher_speech', (data) => {
+          console.log('Received teacher speech:', data);
+          // This will be handled in the component
+        });
+        
+        socketInstance.on('student_transcript', (data) => {
+          console.log('Received student transcript:', data);
+          // This will be handled in the component
+        });
+        
+        socketInstance.on('session_update', (data) => {
+          console.log('Received session update:', data);
+          // This will be handled in the component
+        });
         // WebRTC related listeners
         setupWebRTCListeners(socketInstance);
 
