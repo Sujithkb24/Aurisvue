@@ -2,7 +2,7 @@ import React,{ useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Mic, MicOff, MessageSquare, ChevronUp, ChevronDown, Pause, Play, 
   RefreshCcw, Clock, Share2, Video, Save, BarChart2, Hand, Users,
-  VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle, Monitor
+  VideoIcon, Settings, PenTool, ArrowLeft, X, HelpCircle, Monitor, CheckCircle, StopCircle
 } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,7 +13,7 @@ import FeedbackComponent from '../Feedback';
 import VideoCall from '../VideoCall';
 import ActiveSessionModal from '../ActiveSessionModal';
 
-
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
   const navigate = useNavigate();
   const { teacherId } = useParams();
@@ -58,10 +58,15 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const sessionTimeRef = useRef(0);
   const sessionTimerRef = useRef(null);
   const videoRef = useRef(null);
+  const videoCallRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const screenShareRef = useRef(null);
-  
+  const [screenShareDebug, setScreenShareDebug] = useState({
+    isConnected: false,
+    hasStream: false,
+    trackCount: 0
+  });
   // Primary UI colors based on role
   const primaryColor = isTeacher ? 
     (darkMode ? 'bg-purple-600' : 'bg-purple-500') : 
@@ -107,22 +112,22 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   // Set up socket events
   useEffect(() => {
     if (!socket || !currentUser) return;
-    
+      
     // Listen for new messages
     socket.on('new_message', (newMsg) => {
       setMessages(prev => [...prev, newMsg]);
     });
-    
-    // Listen for speech updates
-    socket.on('speech_update', (speech) => {
-      setDetectedSpeech(speech.text);
       
+    // Listen for speech updates from teacher
+    socket.on('teacher_speech', (speech) => {
+      setDetectedSpeech(speech.text);
+          
       // Add to history if it's a final result
       if (speech.isFinal) {
         addToTranscriptHistory(speech.text);
       }
     });
-    
+      
     // Listen for session updates
     socket.on('session_update', (update) => {
       if (update.type === 'paused') {
@@ -133,43 +138,43 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
         handleSessionEnded();
       } else if (update.type === 'hand_raised') {
         // Update students list with hand raised status
-        setActiveStudents(prev => 
-          prev.map(student => 
-            student.id === update.userId 
-              ? { ...student, handRaised: update.value } 
+        setActiveStudents(prev =>
+          prev.map(student =>
+            student.id === update.userId
+              ? { ...student, handRaised: update.value }
               : student
           )
         );
       }
     });
-    
+      
     // Listen for student feedback (teacher only)
     if (userRole === 'teacher') {
       socket.on('student_feedback', (feedback) => {
         // Enhanced feedback handler
         console.log('Student feedback received:', feedback);
-        
+              
         // Create a notification for the teacher with more detailed feedback
         if (!feedback.understood) {
           let notificationMessage = `${feedback.studentName} needs clarification`;
-          
+                  
           if (feedback.problematicWords && feedback.problematicWords.length > 0) {
             notificationMessage += `. Problem words: ${feedback.problematicWords.join(', ')}`;
           }
-          
+                  
           if (feedback.specificFeedback) {
             notificationMessage += `. Comment: ${feedback.specificFeedback}`;
           }
-          
+                  
           // Show notification (implement your notification system here)
           alert(notificationMessage); // Replace with your notification system
         }
       });
     }
-    
+      
     return () => {
       socket.off('new_message');
-      socket.off('speech_update');
+      socket.off('teacher_speech');
       socket.off('session_update');
       if (userRole === 'teacher') {
         socket.off('student_feedback');
@@ -211,7 +216,7 @@ const stopCamera = () => {
     
     try {
       const token = await getToken();
-      const response = await fetch(`/api/sessions/${classSession.id}/transcripts`, {
+      const response = await fetch(`${API_URL}/classes/${classSession._id}/append`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,30 +241,30 @@ const stopCamera = () => {
       setError("Your browser doesn't support speech recognition. Please use Chrome or Edge.");
       return null;
     }
-    
+      
     // Create a new recognition instance
     const rec = new SpeechRecognition();
-    
+      
     // Configuration for better speech detection
     rec.continuous = true;
     rec.interimResults = true;
     rec.lang = 'en-US';
     rec.maxAlternatives = 3; // Try to get more alternatives for better detection
-    
+      
     // Set shorter timeout for periodic restart to avoid detection issues
     const RESTART_INTERVAL = 10000; // 10 seconds
     let restartTimer = null;
-    
+      
     // Track no-speech errors
     let noSpeechCount = 0;
     const MAX_NO_SPEECH_ERRORS = 3;
-  
+    
     rec.onstart = () => {
       console.log('Speech recognition started');
       setIsMicActive(true);
       setError(null);
       noSpeechCount = 0;
-      
+          
       // Set up periodic restart to avoid detection issues
       clearTimeout(restartTimer);
       restartTimer = setTimeout(() => {
@@ -273,37 +278,39 @@ const stopCamera = () => {
         }
       }, RESTART_INTERVAL);
     };
-  
+    
     rec.onresult = (event) => {
       if (isPaused) return;
-      
+          
       // Reset no-speech counter when we get results
       noSpeechCount = 0;
-      
+          
       const lastResult = event.results[event.results.length - 1];
       const transcript = Array.from(event.results)
         .map(r => r[0].transcript)
         .join('');
-      
+          
       setDetectedSpeech(transcript);
-  
-      if (isTeacher && socket) {
+      
+      // If teacher is speaking, emit to all students in the room
+      if (isTeacher && socket && currentRoom) {
+        // Emit the speech to all users in the room
         socket.emit('teacher_speech', {
           text: transcript,
           isFinal: lastResult.isFinal,
-          sessionId: classSession?.id,
+          sessionId: classSession?.id || classSession?._id,
         });
       }
-  
+      
       if (lastResult.isFinal) {
         addToTranscriptHistory(transcript);
         if (isTeacher) saveTranscriptToBackend(transcript);
       }
     };
-  
+    
     rec.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      
+          
       switch (event.error) {
         case 'network':
           setError('Network error: Checking connection...');
@@ -313,19 +320,19 @@ const stopCamera = () => {
             console.warn('Failed to stop recognition after network error:', e);
           }
           break;
-          
+                
         case 'not-allowed':
           setError('Microphone access denied. Please allow microphone access.');
           setIsMicActive(false);
           break;
-          
+                
         case 'no-speech':
           noSpeechCount++;
           console.log(`No speech detected (${noSpeechCount}/${MAX_NO_SPEECH_ERRORS})`);
-          
+                  
           if (noSpeechCount >= MAX_NO_SPEECH_ERRORS) {
             setError('No speech detected. Please check your microphone settings or speak louder.');
-            
+                      
             // After multiple no-speech errors, let's try to restart with new settings
             try {
               rec.stop();
@@ -337,25 +344,25 @@ const stopCamera = () => {
             // They're normal and expected
           }
           break;
-          
+                
         case 'aborted':
           // Ignore aborted event during cleanup
           break;
-          
+                
         default:
           setError(`Recognition error: ${event.error}`);
           setIsMicActive(false);
       }
     };
-  
+    
     rec.onend = () => {
       console.log('Speech recognition ended');
       clearTimeout(restartTimer);
-      
+          
       // Only auto-restart if we're still supposed to be active
       if (!isPaused && isMicActive) {
         console.log('Attempting to restart speech recognition...');
-        
+              
         setTimeout(() => {
           try {
             rec.start();
@@ -370,9 +377,10 @@ const stopCamera = () => {
         setIsMicActive(false);
       }
     };
-  
+    
     return rec;
-  }, [isTeacher, socket, classSession, isPaused, isMicActive, addToTranscriptHistory, saveTranscriptToBackend]);
+  }, [isTeacher, socket, classSession, isPaused, isMicActive, currentRoom]);
+  
   
   // Check for active session (teacher only)
   const checkForActiveSession = async () => { 
@@ -402,13 +410,98 @@ const stopCamera = () => {
     }
   };
   
+ 
+  // Add this effect to check for active sessions when the component mounts
+  useEffect(() => {
+    // Check for active sessions when the component mounts
+    checkForActiveSession();
+    
+    // Set up socket listeners for comprehension feedback
+    if (socket) {
+      socket.on('comprehension_update', (data) => {
+        // Update the student's comprehension status in the activeStudents array
+        setActiveStudents(prevStudents => 
+          prevStudents.map(student => 
+            student.id === data.studentId 
+              ? { ...student, comprehensionStatus: data.status }
+              : student
+          )
+        );
+        
+        // For teachers, optionally show a notification
+        if (isTeacher) {
+          const student = activeStudents.find(s => s.id === data.studentId);
+          const studentName = student ? student.name : 'A student';
+          
+          toast({
+            title: data.status === 'understand' 
+              ? `${studentName} understands` 
+              : `${studentName} needs clarification`,
+            status: data.status === 'understand' ? 'success' : 'warning',
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      });
+      
+      // Clean up the listener when the component unmounts
+      return () => {
+        socket.off('comprehension_update');
+      };
+    }
+  }, [socket, isTeacher]);
+ 
+  const handleScreenShareChange = (isSharing, stream) => {
+    setIsScreenSharing(isSharing);
+    
+    // Use the passed stream directly
+    if (isSharing && stream) {
+      console.log("Screen share change detected with stream:", stream);
+      
+      // Update the screen share ref with the stream
+      if (screenShareRef && screenShareRef.current) {
+        console.log("Assigning stream to screenShareRef");
+        screenShareRef.current.srcObject = stream;
+        
+        // Ensure video plays by forcing play after a small delay
+        setTimeout(() => {
+          if (screenShareRef.current) {
+            screenShareRef.current.play().catch(err => {
+              console.warn(`Failed to play screen share: ${err.message}`);
+            });
+          }
+        }, 100);
+      } else {
+        console.warn("screenShareRef or screenShareRef.current is null in parent component");
+      }
+      
+      // Update debug info
+      setScreenShareDebug({
+        isConnected: true,
+        hasStream: !!stream,
+        trackCount: stream ? stream.getVideoTracks().length : 0
+      });
+    } else {
+      // Clear the screen share ref
+      if (screenShareRef && screenShareRef.current) {
+        screenShareRef.current.srcObject = null;
+      }
+      
+      setScreenShareDebug({
+        isConnected: false,
+        hasStream: false,
+        trackCount: 0
+      });
+    }
+  };
+  
   // Load session data
   const loadSessionData = async (sessionId) => {
     try {
       const token = await getToken();
       
       // Get transcripts
-      const transcriptsResponse = await fetch(`/api/sessions/${sessionId}/transcripts`, {
+      const transcriptsResponse = await fetch(`${API_URL}/classes/${sessionId}/transcripts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -421,7 +514,7 @@ const stopCamera = () => {
       }
       
       // Get messages
-      const messagesResponse = await fetch(`/api/sessions/${sessionId}/messages`, {
+      const messagesResponse = await fetch(`${API_URL}/classes/${sessionId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -557,7 +650,7 @@ const stopCamera = () => {
     if (isTeacher && socket && classSession) {
       socket.emit('session_update', {
         type: 'stopped',
-        sessionId: classSession.id,
+        sessionId: classSession._id,
       });
     }
     
@@ -639,7 +732,7 @@ const stopCamera = () => {
       setError(null);
       
       if (isTeacher && socket && classSession) {
-        socket.emit('session_update', { type: 'started', sessionId: classSession.id });
+        socket.emit('session_update', { type: 'started', sessionId: classSession._id });
       }
       
       if (!sessionTimerRef.current) startSessionTimer();
@@ -650,7 +743,20 @@ const stopCamera = () => {
     }
   }, [initRecognition, isTeacher, socket, classSession, createClassSession, startSessionTimer]);
   
-  
+  const emitSpeechText = (text, isFinal = true) => {
+    if (isTeacher && socket && currentRoom) {
+      socket.emit('teacher_speech', {
+        text: text,
+        isFinal: isFinal,
+        sessionId: classSession?.id || classSession?._id,
+      });
+      
+      if (isFinal) {
+        addToTranscriptHistory(text);
+        saveTranscriptToBackend(text);
+      }
+    }
+  };
   // Toggle pause
   const togglePause = () => {
     const newPausedState = !isPaused;
@@ -698,7 +804,7 @@ const stopCamera = () => {
     
     try {
       const token = await getToken();
-      const response = await fetch(`/api/sessions/${classSession.id}`, {
+      const response = await fetch(`${API_URL}/classes/${classSession._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -714,7 +820,7 @@ const stopCamera = () => {
         // Notify students session has ended
         socket.emit('session_update', {
           type: 'ended',
-          sessionId: classSession.id
+          sessionId: classSession._id
         });
         
         handleSessionEnded();
@@ -815,7 +921,7 @@ const stopCamera = () => {
       senderRole: userRole,
       text: message,
       timestamp: new Date().toISOString(),
-      sessionId: classSession.id
+      sessionId: classSession._id
     };
 
     
@@ -829,7 +935,7 @@ const stopCamera = () => {
     try {
       // Send to backend
       const token = await getToken();
-      const response = await fetch(`/api/sessions/${classSession.id}/messages`, {
+      const response = await fetch(`/api/sessions/${classSession._id}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -872,7 +978,7 @@ const stopCamera = () => {
     
     try {
       const token = await getToken();
-      const response = await fetch(`/api/sessions/${classSession.id}/save`, {
+      const response = await fetch(`/api/sessions/${classSession._id}/save`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -1029,6 +1135,8 @@ const stopCamera = () => {
         onContinueSession={handleContinueSession}
         onCreateNewClass={createClassSession}
         isLoading={isLoading}
+        // Make modal automatically visible for teachers based on session check
+        isOpen={userRole === 'teacher' && !classSession}
       />
       {/* Custom Header */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md p-4`}>
@@ -1097,70 +1205,75 @@ const stopCamera = () => {
         <div className="flex-1 flex flex-col overflow-y-auto">
           {/* ISL Visualization and Speech Recognition Area */}
           <div className={`p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} flex flex-col md:flex-row gap-4`}>
-  {/* Left side: ISL Visualization with Screen Share Support */}
-  <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
-    <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-      <h2 className="text-lg font-semibold">ISL Visualization</h2>
-      {isScreenSharing && (
-        <span className={`px-2 py-1 text-xs rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-          <Monitor size={14} className="inline mr-1" />
-          Screen Sharing Active
-        </span>
-      )}
-    </div>
-    
-    <div className="flex-1 p-4 relative">
-      {/* Screen Share Layer - Displayed on top when active */}
-      {isScreenSharing && (
-        <div className="absolute inset-0 z-10 flex flex-col">
-          <div className="flex-1 flex">
-            {/* Screen Share takes primary space */}
-            <div className="flex-1 bg-black bg-opacity-10 rounded-lg overflow-hidden">
-              <video 
-                ref={screenShareRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-contain"
-              />
-            </div>
-            
-            {/* ISL Viewer in smaller size */}
-            <div className="w-1/3 p-2">
-              <div className={`h-full rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'} flex items-center justify-center p-2`}>
-                <ISLViewer 
-                  text={detectedSpeech}
-                  speed={sessionSpeed}
-                  paused={isPaused}
-                  compact={true} // New prop to render in compact mode
-                />
+            {/* Left side: ISL Visualization with Screen Share Support */}
+            <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
+              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 className="text-lg font-semibold">ISL Visualization</h2>
+                {isScreenSharing && (
+                  <span className={`px-2 py-1 text-xs rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <Monitor size={14} className="inline mr-1" />
+                    Screen Sharing Active
+                  </span>
+                )}
               </div>
+              
+              <div className="flex-1 p-4 relative">
+                {/* Screen Share Layer - Displayed on top when active */}
+                {isScreenSharing && (
+      <div className="absolute inset-0 z-10 flex flex-col bg-black bg-opacity-80">
+        <div className="flex-1 flex">
+          {/* Screen Share takes primary space */}
+          <div className="flex-1 bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
+            <video 
+              ref={screenShareRef} // This is okay because we're using the same ref
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-contain max-h-screen" 
+              style={{ display: 'block' }} // Force display block
+            />
+            
+            {/* Debug overlay */}
+            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs p-1 rounded">
+              Screen Share: {screenShareDebug.isConnected ? 'Connected' : 'Disconnected'} | 
+              Stream: {screenShareDebug.hasStream ? 'Yes' : 'No'} | 
+              Tracks: {screenShareDebug.trackCount}
+            </div>
+          </div>
+          
+          {/* ISL Viewer in smaller size */}
+          <div className="w-1/3 p-2">
+            <div className={`h-full rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-100'} flex items-center justify-center p-2`}>
+              <ISLViewer text={detectedSpeech} speed={sessionSpeed} paused={isPaused} compact={true} />
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Default ISL Viewer - Hidden when screen sharing is active */}
-      <div className={`flex items-center justify-center ${isScreenSharing ? 'invisible' : ''}`}>
-        <ISLViewer 
-          text={detectedSpeech}
-          speed={sessionSpeed}
-          paused={isPaused}
-        />
       </div>
-    </div>
-    
-    {/* Speech detection display */}
-    <div className={`p-4 ${darkMode ? 'bg-gray-750' : 'bg-gray-50'} rounded-b-xl`}>
-      <p className="text-sm font-medium mb-1">
-        {isTeacher ? 'Your Speech' : 'Teacher\'s Speech'}:
-      </p>
-      <div className={`p-3 rounded-lg min-h-12 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-        {detectedSpeech || 'No speech detected...'}
-      </div>
-    </div>
-  </div>
-            
-            {/* Right side: Video Capture (for ISL practice) */}
+    )}
+     
+                {/* Default ISL Viewer - Hidden when screen sharing is active */}
+                <div className={`flex items-center justify-center ${isScreenSharing ? 'invisible' : ''}`}>
+                  <ISLViewer 
+                    text={detectedSpeech}
+                    speed={sessionSpeed}
+                    paused={isPaused}
+                  />
+                </div>
+              </div>
+              
+              {/* Speech detection display */}
+              <div className={`p-4 ${darkMode ? 'bg-gray-750' : 'bg-gray-50'} rounded-b-xl`}>
+                <p className="text-sm font-medium mb-1">
+                  {isTeacher ? 'Your Speech' : 'Teacher\'s Speech'}:
+                </p>
+                <div className={`p-3 rounded-lg min-h-12 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  {detectedSpeech || 'No speech detected...'}
+                </div>
+              </div>
+
+             
+            </div>
+                      
+            {/* Right side: Video Capture */}
             <div className={`md:w-96 w-full rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
               <div className="p-4 border-b border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold">Video Capture</h2>
@@ -1188,37 +1301,31 @@ const stopCamera = () => {
                   </div>
                 )}
               </div>
-              
+              <video 
+      ref={screenShareRef} 
+      autoPlay 
+      playsInline 
+      style={{ display: 'none', width: 0, height: 0 }} 
+    />
               {/* Video call component integration */}
               {(isTeacher || handRaised) && (
                 <div className="px-4 pb-4">
-                  <VideoCall
-                    isTeacher={isTeacher}
-                    handRaised={handRaised}
-                    videoEnabled={videoEnabled}
-                    darkMode={darkMode}
-                    primaryColor={primaryColor}
-                    primaryHoverColor={primaryHoverColor}
-                    classSession={classSession}
-                    videoRef={videoRef}
-                    toggleVideo={toggleVideo}
-                    activeStudents={activeStudents}
-                    screenShareRef={screenShareRef}
-onScreenShareChange={setIsScreenSharing}
-                  />
-                </div>
-              )}
-              
-              {/* Student feedback component (only for students) */}
-              {!isTeacher && (
-                <div className="p-4 border-t border-gray-700">
-                  <FeedbackComponent
-                    currentTranscript={detectedSpeech}
-                    sessionId={classSession?.id}
-                    socket={socket}
-                    darkMode={darkMode}
-                    primaryColor={primaryColor}
-                  />
+              <VideoCall 
+      ref={videoCallRef} 
+      isTeacher={isTeacher} 
+      handRaised={handRaised} 
+      videoEnabled={videoEnabled} 
+      darkMode={darkMode} 
+      primaryColor={primaryColor} 
+      primaryHoverColor={primaryHoverColor} 
+      classSession={classSession} 
+      videoRef={videoRef} 
+      screenShareRef={screenShareRef}  // Passing the reference correctly
+      toggleVideo={toggleVideo} 
+      activeStudents={activeStudents} 
+      onScreenShareChange={handleScreenShareChange} 
+      currentUser={currentUser} 
+    />
                 </div>
               )}
             </div>
@@ -1227,72 +1334,89 @@ onScreenShareChange={setIsScreenSharing}
           {/* Controls and transcript section */}
           <div className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
             {/* Teaching/Learning controls */}
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center mb-4">
               {/* Left side controls */}
-              <div className="flex items-center space-x-3">
-                {isTeacher ? (
-                  <button
-                    onClick={isMicActive ? stopMic : startMic}
-                    className={`px-4 py-2 rounded-lg flex items-center ${
-                      isMicActive 
-                        ? 'bg-red-500 hover:bg-red-600 text-white' 
-                        : `${primaryColor} ${primaryHoverColor} text-white`
-                    }`}
-                  >
-                    {isMicActive ? (
-                      <>
-                        <MicOff size={16} className="mr-2" />
-                        <span>Stop Teaching</span>
-                      </>
-                    ) : (
-                      <>
-                        <Mic size={16} className="mr-2" />
-                        <span>Start Teaching</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={toggleHand}
-                    className={`px-4 py-2 rounded-lg flex items-center ${
-                      handRaised
-                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                        : `${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`
-                    }`}
-                  >
-                    <Hand size={16} className="mr-2" />
-                    <span>{handRaised ? 'Lower Hand' : 'Raise Hand'}</span>
-                  </button>
-                )}
-                
-                {/* Play/Pause button */}
-                {(isTeacher || isMicActive) && (
-                  <button
-                    onClick={togglePause}
-                    className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-                  >
-                    {isPaused ? <Play size={18} /> : <Pause size={18} />}
-                  </button>
-                )}
-                
-                {/* Speed control (teacher only) */}
-                {isTeacher && (
-                  <div className="flex items-center">
-                    <span className="text-sm mx-2">Speed:</span>
-                    <select
-                      value={sessionSpeed}
-                      onChange={(e) => changeSpeed(parseFloat(e.target.value))}
-                      className={`rounded-lg px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}
-                    >
-                      <option value="0.5">0.5x</option>
-                      <option value="0.75">0.75x</option>
-                      <option value="1">1x</option>
-                      <option value="1.25">1.25x</option>
-                      <option value="1.5">1.5x</option>
-                    </select>
-                  </div>
-                )}
-              </div>
+              {/* Left side controls */}
+<div className="flex items-center space-x-3 mb-2 sm:mb-0">
+  {isTeacher ? (
+    <button
+      onClick={isMicActive ? stopMic : startMic}
+      className={`px-4 py-2 rounded-lg flex items-center ${
+        isMicActive 
+          ? 'bg-red-500 hover:bg-red-600 text-white' 
+          : `${primaryColor} ${primaryHoverColor} text-white`
+      }`}
+    >
+      {isMicActive ? (
+        <>
+          <MicOff size={16} className="mr-2" />
+          <span>Stop Teaching</span>
+        </>
+      ) : (
+        <>
+          <Mic size={16} className="mr-2" />
+          <span>Start Teaching</span>
+        </>
+      )}
+    </button>
+  ) : (
+    <>
+      <button
+        onClick={toggleHand}
+        className={`px-4 py-2 rounded-lg flex items-center ${
+          handRaised
+            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+            : `${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`
+        }`}
+      >
+        <Hand size={16} className="mr-2" />
+        <span>{handRaised ? 'Lower Hand' : 'Raise Hand'}</span>
+      </button>
+      
+       {/* Add Feedback Component for students - moved here from the nested location */}
+       {!isTeacher && classSession && (
+                <div className="relative">
+                  <FeedbackComponent
+                    darkMode={darkMode}
+                    currentUser={currentUser}
+                    classSession={classSession}
+                    detectedSpeech={detectedSpeech}
+                    setUnderstanding={setUnderstanding}
+                    understanding={understanding}
+                  />
+                </div>
+              )}
+    </>
+  )}
+  
+  {/* Play/Pause button */}
+  {(isTeacher || isMicActive) && (
+    <button
+      onClick={togglePause}
+      className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+    >
+      {isPaused ? <Play size={18} /> : <Pause size={18} />}
+    </button>
+  )}
+  
+  {/* Speed control (teacher only) */}
+  {isTeacher && (
+    <div className="flex items-center">
+      <span className="text-sm mx-2">Speed:</span>
+      <select
+        value={sessionSpeed}
+        onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+        className={`rounded-lg px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}
+      >
+        <option value="0.5">0.5x</option>
+        <option value="0.75">0.75x</option>
+        <option value="1">1x</option>
+        <option value="1.25">1.25x</option>
+        <option value="1.5">1.5x</option>
+      </select>
+    </div>
+  )}
+</div>
               
               {/* Right side controls */}
               <div className="flex items-center space-x-3">
@@ -1390,11 +1514,23 @@ onScreenShareChange={setIsScreenSharing}
                     </div>
                     <span className="ml-2">{student.name}</span>
                   </div>
-                  {student.handRaised && (
-                    <span className="p-1 rounded-full bg-yellow-500">
-                      <Hand size={14} className="text-white" />
-                    </span>
-                  )}
+                  <div className="flex items-center space-x-1">
+                    {student.comprehensionStatus === 'understand' && (
+                      <span className="p-1 rounded-full bg-green-500">
+                        <CheckCircle size={14} className="text-white" />
+                      </span>
+                    )}
+                    {student.comprehensionStatus === 'need_clarification' && (
+                      <span className="p-1 rounded-full bg-yellow-500">
+                        <HelpCircle size={14} className="text-white" />
+                      </span>
+                    )}
+                    {student.handRaised && (
+                      <span className="p-1 rounded-full bg-yellow-500">
+                        <Hand size={14} className="text-white" />
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

@@ -12,13 +12,13 @@ const classSessionSchema = new mongoose.Schema({
     unique: true,
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     ref: 'User',
     required: true,
   },
   students: [
     {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'User',
     }
   ],
@@ -39,7 +39,7 @@ const classSessionSchema = new mongoose.Schema({
       text: { type: String, required: true },
       speaker: { type: String }, // e.g., 'teacher' or 'student'
       userId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         ref: 'User'
       },
       timestamp: { type: Date, default: Date.now }
@@ -48,7 +48,7 @@ const classSessionSchema = new mongoose.Schema({
   handRaises: [
     {
       userId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         ref: 'User',
         required: true
       },

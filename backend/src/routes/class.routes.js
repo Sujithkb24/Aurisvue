@@ -27,5 +27,6 @@ router.delete('/:sessionId/hand-raises', verifyToken, clearHandRaises); // Teach
 router.put('/:sessionId/end', verifyToken ,endClassSession);
 router.get('/:sessionId/transcripts', verifyToken, getSessionTranscripts);
 router.get('/:sessionId/messages', verifyToken, getSessionMessages);
+
 export default router;
 

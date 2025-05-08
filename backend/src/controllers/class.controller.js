@@ -1,12 +1,12 @@
 import ClassSession from '../models/class.model.js';
 import { nanoid } from 'nanoid';
+import User from '../models/user.model.js';
 
 // Create new class session (Teacher only)
 export const createClassSession = async (req, res) => {
     try {
       const { title, description, video = false } = req.body;
       const userId = req.user.uid;
-      console.log(userId)
       const session = await ClassSession.create({
         title,
         description,
@@ -26,7 +26,7 @@ export const createClassSession = async (req, res) => {
 // Get active session for teacher
 export const getActiveSession = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.uid;
     const activeSession = await ClassSession.findOne({ createdBy: userId, isActive: true });
     res.status(200).json({ activeSession });
   } catch (err) {
@@ -51,9 +51,7 @@ export const joinClassByCode = async (req, res) => {
     res.status(500).json({ message: 'Error joining session' });
   }
 };
-// controllers/class.controller.js
 
-// import ClassSession from '../models/class.model.js';
 
 export const appendTranscriptEntry = async (req, res) => {
   try {
@@ -69,7 +67,7 @@ export const appendTranscriptEntry = async (req, res) => {
       text,
       speaker: req.user.role,
     
-      userId: req.user.id,
+      userId: req.user.uid,
       timestamp: timestamp || new Date()
     });
 
@@ -108,31 +106,59 @@ export const getSessionTranscripts = async (req, res) => {
 export const getSessionMessages = async (req, res) => {
   try {
     const { sessionId } = req.params;
-
-    const session = await ClassSession.findById(sessionId)
-      .populate('students', 'name') // if needed
-      .populate('createdBy', 'name'); // optional
-
+    const session = await ClassSession.findById(sessionId).lean();
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
-    // Sample logic: Assuming "messages" are stored in the transcripts or you'd want to structure this differently.
-    // You can customize what qualifies as a message (e.g., filter only user messages)
-    const messages = session.transcripts.map(t => ({
-      text: t.text,
-      sender: t.speaker,
-      userId: t.userId,
+    // 1) Resolve creator name (always a single UID)
+    const createdByUid = session.createdBy;
+    const createdByUser = createdByUid
+      ? await User.findOne({ firebaseUid: createdByUid }, 'name').lean()
+      : null;
+
+    // 2) Ensure students is an array
+    const studentUids = Array.isArray(session.students)
+      ? session.students
+      : [];
+
+    // 3) Only query if there's at least one UID
+    let studentDocs = [];
+    if (studentUids.length > 0) {
+      studentDocs = await User.find(
+        { firebaseUid: { $in: studentUids } },
+        'firebaseUid name'
+      ).lean();
+    }
+
+    // 4) Build UID→name map
+    const nameByUid = {};
+    if (createdByUser) {
+      nameByUid[createdByUid] = createdByUser.name;
+    }
+    for (let u of studentDocs) {
+      nameByUid[u.firebaseUid] = u.name;
+    }
+
+    // 5) Assemble messages, pulling names where available
+    const messages = (session.transcripts || []).map(t => ({
+      text:     t.text,
+      sender:   t.speaker,
+      userId:   t.userId,
+      userName: nameByUid[t.userId] || t.speaker,
       timestamp: t.timestamp,
     }));
 
-    res.status(200).json({ messages });
+    return res.status(200).json({
+      createdBy: createdByUid
+        ? { uid: createdByUid, name: nameByUid[createdByUid] || null }
+        : null,
+      students: studentDocs.map(u => ({ uid: u.firebaseUid, name: u.name })),
+      messages,
+    });
   } catch (error) {
     console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Server error while fetching messages' });
+    return res.status(500).json({ error: 'Server error while fetching messages' });
   }
 };
-
-// controllers/class.controller.js
-
 
 
 // Raise hand (Student role)

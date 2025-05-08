@@ -1,6 +1,7 @@
-import React,{ useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { CheckCircle, HelpCircle } from 'lucide-react';
 
 const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech, setUnderstanding, understanding }) => {
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(false);
@@ -91,33 +92,39 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
   };
 
   return (
-    <div className="absolute top-4 right-4 flex flex-col space-y-2 z-10">
-      {/* Basic feedback buttons */}
-      <div className="flex space-x-2">
+    <div className="p-4 border-t border-gray-700">
+      {/* Basic feedback buttons - using the style from the duplicated buttons */}
+      <div className="flex justify-center space-x-4">
         <button
           onClick={() => sendFeedback(true)}
-          className={`px-3 py-1 rounded-lg text-sm ${understanding === true 
-            ? 'bg-green-600 text-white' 
-            : `${darkMode ? 'bg-gray-700 hover:bg-green-900' : 'bg-gray-200 hover:bg-green-100'}`}`}
+          className={`px-4 py-2 rounded-lg flex items-center ${
+            understanding === true 
+              ? 'bg-green-600 text-white' 
+              : `bg-green-500 hover:bg-green-600 text-white`
+          }`}
         >
-          I understand
+          <CheckCircle size={16} className="mr-2" />
+          <span>I Understand</span>
         </button>
         <button
           onClick={() => {
             setShowDetailedFeedback(true);
             setUnderstanding(false);
           }}
-          className={`px-3 py-1 rounded-lg text-sm ${understanding === false 
-            ? 'bg-red-600 text-white' 
-            : `${darkMode ? 'bg-gray-700 hover:bg-red-900' : 'bg-gray-200 hover:bg-red-100'}`}`}
+          className={`px-4 py-2 rounded-lg flex items-center ${
+            understanding === false 
+              ? 'bg-yellow-600 text-white' 
+              : `bg-yellow-500 hover:bg-yellow-600 text-white`
+          }`}
         >
-          Need clarification
+          <HelpCircle size={16} className="mr-2" />
+          <span>Need Clarification</span>
         </button>
       </div>
       
       {/* Detailed feedback form */}
       {showDetailedFeedback && (
-        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg max-w-sm`}>
+        <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
           <h4 className="font-medium text-sm mb-2">What was unclear?</h4>
           
           {/* Word selection for problematic words */}

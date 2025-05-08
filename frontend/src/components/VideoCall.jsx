@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+// Modified VideoCall component with React.forwardRef
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { 
   Video as VideoIcon, 
@@ -13,7 +14,7 @@ import {
   XCircle
 } from 'lucide-react';
 
-const VideoCall = ({ 
+const VideoCall = forwardRef(({ 
   isTeacher, 
   handRaised, 
   videoEnabled, 
@@ -22,11 +23,12 @@ const VideoCall = ({
   primaryHoverColor,
   classSession,
   videoRef,
-  screenShareRef, // New prop to pass screen share reference
+  screenShareRef,
   toggleVideo,
   activeStudents,
   onScreenShareChange,
-}) => {
+  currentUser
+}, ref) => {
   const {
     isConnected,
     currentRoom,
@@ -53,20 +55,35 @@ const VideoCall = ({
   const [tooltipText, setTooltipText] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [streamDebugInfo, setStreamDebugInfo] = useState({
+    hasVideoStream: false,
+    hasScreenStream: false,
+    videoTracks: 0,
+    screenTracks: 0
+  });
 
   // References for media elements
   const localVideoRef = useRef(null);
   const screenVideoRef = useRef(null);
   const remoteVideoRefs = useRef({});
   
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    handleStopScreenShare: () => handleStopScreenShare(),
+    handleStartScreenShare: () => handleStartScreenShare(),
+    isScreenSharing: () => isScreenSharing
+  }));
+  
   // Auto-join room when class session is available
   useEffect(() => {
     if (classSession && isConnected && classSession.id) {
+      console.log(`Joining room: ${classSession.id}`);
       joinRoom(classSession.id);
     }
     
     return () => {
       if (classSession && classSession.id) {
+        console.log(`Leaving room: ${classSession.id}`);
         leaveRoom(classSession.id);
       }
     };
@@ -89,6 +106,7 @@ const VideoCall = ({
   // Subscribe to video streams of users in the room
   useEffect(() => {
     const handleUserJoined = (userId, stream) => {
+      console.log(`User joined: ${userId} with stream`, stream);
       setRemoteStreams(prev => ({
         ...prev,
         [userId]: stream
@@ -96,6 +114,7 @@ const VideoCall = ({
     };
 
     const handleUserLeft = (userId) => {
+      console.log(`User left: ${userId}`);
       setRemoteStreams(prev => {
         const newStreams = { ...prev };
         delete newStreams[userId];
@@ -104,6 +123,7 @@ const VideoCall = ({
     };
 
     if (currentRoom) {
+      console.log(`Setting up event listeners for room: ${currentRoom}`);
       subscribe('user-joined', handleUserJoined);
       subscribe('user-left', handleUserLeft);
     }
@@ -118,13 +138,21 @@ const VideoCall = ({
   useEffect(() => {
     Object.entries(remoteStreams).forEach(([userId, stream]) => {
       if (remoteVideoRefs.current[userId] && stream) {
+        console.log(`Assigning stream for user ${userId} to video element`);
         remoteVideoRefs.current[userId].srcObject = stream;
+        
+        // Ensure the video plays
+        remoteVideoRefs.current[userId].play().catch(err => {
+          console.warn(`Failed to play remote video: ${err.message}`);
+        });
       }
     });
   }, [remoteStreams]);
 
   // Synchronize isInCall state with videoEnabled prop from parent
   useEffect(() => {
+    console.log(`videoEnabled changed: ${videoEnabled}, isInCall: ${isInCall}`);
+    
     // If the parent component enables video but we're not in a call
     if (videoEnabled && !isInCall) {
       // Start a video call to match the parent state
@@ -140,18 +168,36 @@ const VideoCall = ({
   // Start video call
   const handleStartCall = async () => {
     try {
+      console.log("Starting video call...");
       const stream = await startVideoCall();
       console.log("Video call started, stream received:", stream);
+      
+      // Update debug info
+      setStreamDebugInfo(prev => ({
+        ...prev,
+        hasVideoStream: !!stream,
+        videoTracks: stream ? stream.getVideoTracks().length : 0
+      }));
       
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         console.log("Stream assigned to localVideoRef");
+        
+        // Ensure the video plays
+        localVideoRef.current.play().catch(err => {
+          console.warn(`Failed to play local video: ${err.message}`);
+        });
       }
       
       // Direct assignment to parent's videoRef
       if (videoRef && videoRef.current) {
         videoRef.current.srcObject = stream;
         console.log("Stream assigned to parent videoRef");
+        
+        // Ensure the video plays
+        videoRef.current.play().catch(err => {
+          console.warn(`Failed to play parent video: ${err.message}`);
+        });
       }
       
       setIsInCall(true);
@@ -163,8 +209,16 @@ const VideoCall = ({
 
   // End video call
   const handleEndCall = () => {
+    console.log("Ending video call...");
     stopVideoCall();
     setIsInCall(false);
+    
+    // Update debug info
+    setStreamDebugInfo(prev => ({
+      ...prev,
+      hasVideoStream: false,
+      videoTracks: 0
+    }));
     
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
@@ -195,33 +249,70 @@ const VideoCall = ({
   };
 
   // Start screen sharing (teacher only)
-  const handleStartScreenShare = async () => {
-    try {
-      const stream = await startScreenSharing();
+ // Start screen sharing (teacher only)
+const handleStartScreenShare = async () => {
+  try {
+    console.log("Starting screen sharing...");
+    const stream = await startScreenSharing();
+    console.log("Screen sharing started, stream received:", stream);
+    
+    // Update debug info
+    setStreamDebugInfo(prev => ({
+      ...prev,
+      hasScreenStream: !!stream,
+      screenTracks: stream ? stream.getVideoTracks().length : 0
+    }));
+    
+    // First check if parent's ref exists and is assigned to a DOM element
+    if (screenShareRef && screenShareRef.current) {
+      screenShareRef.current.srcObject = stream;
+      console.log("Stream assigned to parent screenShareRef");
       
-      if (screenVideoRef.current) {
-        screenVideoRef.current.srcObject = stream;
-      }
+      // Try to force play with a small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (screenShareRef.current) {
+          screenShareRef.current.play().catch(err => {
+            console.warn(`Failed to play screen share video: ${err.message}`);
+          });
+        }
+      }, 100);
+    } else {
+      console.warn("No screenShareRef provided from parent component or ref.current is null");
       
-      // Assign to parent's ref if available
-      if (screenShareRef && screenShareRef.current) {
-        screenShareRef.current.srcObject = stream;
-      }
-      
-      setIsScreenSharing(true);
-      
-      // Notify parent component about screen sharing state
-      if (onScreenShareChange) {
-        onScreenShareChange(true);
-      }
-    } catch (error) {
-      console.error('Failed to start screen sharing:', error);
+      // Even if parent ref doesn't work, still continue with local ref as fallback
+      console.log("Falling back to local screen video reference");
     }
-  };
-
-  // Stop screen sharing
+    
+    // Also keep a local reference 
+    if (screenVideoRef.current) {
+      screenVideoRef.current.srcObject = stream;
+      console.log("Stream assigned to local screenVideoRef");
+    }
+    
+    setIsScreenSharing(true);
+    
+    // Notify parent component about screen sharing state AND pass the stream
+    // Even if the ref didn't work, the parent can still use this stream
+    if (onScreenShareChange) {
+      console.log("Notifying parent component about screen sharing with stream");
+      onScreenShareChange(true, stream);  // Pass the stream to parent
+    }
+  } catch (error) {
+    console.error('Failed to start screen sharing:', error);
+  }
+};
+  
+  // Handle stopping screen share
   const handleStopScreenShare = () => {
+    console.log("Stopping screen sharing...");
     stopScreenSharing();
+    
+    // Update debug info
+    setStreamDebugInfo(prev => ({
+      ...prev,
+      hasScreenStream: false,
+      screenTracks: 0
+    }));
     
     if (screenVideoRef.current) {
       screenVideoRef.current.srcObject = null;
@@ -234,14 +325,15 @@ const VideoCall = ({
     
     setIsScreenSharing(false);
     
-    // Notify parent component about screen sharing state
+    // Notify parent component about screen sharing state with null stream
     if (onScreenShareChange) {
-      onScreenShareChange(false);
+      onScreenShareChange(false, null);
     }
   };
 
   // Approve student's request to enable video
   const approveStudentVideo = (studentId) => {
+    console.log(`Approving student ${studentId} for video`);
     // In a real implementation, you would emit an event to allow the student
     setApprovedStudents(prev => [...prev, studentId]);
     
@@ -254,6 +346,7 @@ const VideoCall = ({
 
   // Deny student's request to enable video
   const denyStudentVideo = (studentId) => {
+    console.log(`Denying student ${studentId} for video`);
     // Remove from pending list
     setPendingHandRaises(prev => prev.filter(student => student.id !== studentId));
     
@@ -263,7 +356,7 @@ const VideoCall = ({
 
   // Student can check if they're approved to turn on video
   const canStudentEnableVideo = () => {
-    return isTeacher || approvedStudents.includes(currentUser?.id);
+    return isTeacher || approvedStudents.includes(currentUser?._id);
   };
 
   // Handle tooltip visibility
@@ -397,6 +490,17 @@ const VideoCall = ({
     );
   };
 
+  // Render debug info panel
+  const renderDebugInfo = () => {
+    return (
+      <div className={`mt-2 text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
+        <div>Video: {streamDebugInfo.hasVideoStream ? 'Yes' : 'No'} ({streamDebugInfo.videoTracks} tracks)</div>
+        <div>Screen: {streamDebugInfo.hasScreenStream ? 'Yes' : 'No'} ({streamDebugInfo.screenTracks} tracks)</div>
+        <div>Room: {currentRoom || 'None'} • Users: {Object.keys(remoteStreams).length}</div>
+      </div>
+    );
+  };
+
   // Main component render
   return (
     <div className="flex flex-col">
@@ -412,26 +516,61 @@ const VideoCall = ({
       {/* Video controls */}
       {renderVideoControls()}
       
+      {/* Debug Info - Useful for troubleshooting */}
+      {renderDebugInfo()}
+      
       {/* Hand raises approval (for teachers) */}
       {renderHandRaises()}
       
-      {/* Hidden elements for internal use */}
-      <video ref={localVideoRef} className="hidden" autoPlay playsInline muted />
-      <video ref={screenVideoRef} className="hidden" autoPlay playsInline />
+      {/* Hidden elements for internal use - Modified to be visible for debug purposes */}
+      <div className={`mt-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} p-2 rounded-lg`}>
+        <p className="text-xs mb-1">Debug Video Elements:</p>
+        <div className="flex gap-2">
+          <div className="w-20 h-20 bg-black bg-opacity-20 rounded">
+            <video 
+              ref={localVideoRef} 
+              className="w-full h-full object-cover" 
+              autoPlay 
+              playsInline 
+              muted 
+            />
+            <p className="text-xs text-center">Local</p>
+          </div>
+          <div className="w-20 h-20 bg-black bg-opacity-20 rounded">
+            <video 
+              ref={screenVideoRef} 
+              className="w-full h-full object-contain" 
+              autoPlay 
+              playsInline 
+            />
+            <p className="text-xs text-center">Screen</p>
+          </div>
+        </div>
+      </div>
       
       {/* Container for remote video elements */}
-      <div className="hidden">
-        {Object.keys(remoteStreams).map(userId => (
-          <video
-            key={userId}
-            ref={el => remoteVideoRefs.current[userId] = el}
-            autoPlay
-            playsInline
-          />
-        ))}
+      <div className="mt-2">
+        {Object.keys(remoteStreams).length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {Object.keys(remoteStreams).map(userId => (
+              <div key={userId} className="w-20 h-20 bg-black bg-opacity-20 rounded">
+                <video
+                  ref={el => remoteVideoRefs.current[userId] = el}
+                  className="w-full h-full object-cover" 
+                  autoPlay
+                  playsInline
+                />
+                <p className="text-xs text-center">{userId.substring(0, 4)}...</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
-};
+});
+
+// Add display name for better debugging
+VideoCall.displayName = 'VideoCall';
 
 export default VideoCall;
