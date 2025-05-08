@@ -17,6 +17,7 @@ import Header from './header';
 import FloatingActionButton from './ActionButton';
 import TeacherSelectionModal from './TeacherSelection';
 import QuickAccessWidget from './plugin/access_widget';
+import HeroSection from './ui/HeroSection';
 
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
@@ -97,7 +98,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       </div>
       
       {/* Hero section with improved branding */}
-      <div className={`relative overflow-hidden py-20 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+      {/* <div className={`relative overflow-hidden py-20 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute transform -rotate-12 -left-10 -top-20 w-64 h-64 rounded-full bg-blue-500"></div>
           <div className="absolute transform rotate-12 right-20 bottom-10 w-48 h-48 rounded-full bg-purple-500"></div>
@@ -138,7 +139,8 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
+      <HeroSection darkMode={darkMode} modelPath="/models/Orc.fbx"/>
       
       {/* Main content with cards - improved layout and animations */}
       <div className="container mx-auto px-6 py-20">
