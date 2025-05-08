@@ -1,4 +1,4 @@
-// Modified VideoCall component with React.forwardRef and improved WebRTC integration
+// Improved VideoCall component with fixed remote track rendering
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { 
@@ -41,7 +41,8 @@ const VideoCall = forwardRef(({
     joinRoom,
     leaveRoom,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    getRemoteStreams // Function to get remote streams from context
   } = useSocket();
 
   // State management
@@ -49,17 +50,29 @@ const VideoCall = forwardRef(({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [remoteStreams, setRemoteStreams] = useState({});
+  const [remoteScreens, setRemoteScreens] = useState({});  // Add separate state for screen sharing
   const [pendingHandRaises, setPendingHandRaises] = useState([]);
   const [approvedStudents, setApprovedStudents] = useState([]);
   const [tooltipText, setTooltipText] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
-  // References for media elements - keep these for internal use
+  // References for media elements
   const localVideoRef = useRef(null);
   const screenVideoRef = useRef(null);
   const remoteVideoRefs = useRef({});
+  const remoteScreenRefs = useRef({});  // Add separate refs for screen sharing
+
+  // Add debug reference to track all remote streams
+  const remoteStreamsDebug = useRef({});
+  useEffect(() => {
+    const existingStreams = getRemoteStreams();
+    console.log('Fetched existing remote streams:', existingStreams);
   
+    if (existingStreams && Object.keys(existingStreams).length > 0) {
+      setRemoteStreams(existingStreams); // Remove this line
+    }
+  }, [getRemoteStreams]);
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     handleStopScreenShare: () => handleStopScreenShare(),
@@ -96,64 +109,164 @@ const VideoCall = forwardRef(({
     }
   }, [activeStudents, isTeacher, approvedStudents]);
 
-  // Handle remote streams from SocketContext
+  // IMPORTANT: Improved handler for remote streams from SocketContext
   useEffect(() => {
-    const handleUserJoined = (userId, stream) => {
-      console.log(`User joined: ${userId} with stream`, stream);
-      setRemoteStreams(prev => ({
-        ...prev,
-        [userId]: stream
-      }));
+    const handleUserJoined = (userId, stream, streamType = 'video') => {
+      console.log(`User joined: ${userId} with ${streamType} stream:`, stream);
+      
+      if (!stream) {
+        console.warn(`Received null or undefined stream for user ${userId}`);
+        return;
+      }
+      
+      // Debug logging
+      console.log(`Tracks in stream:`, stream.getTracks().map(t => t.kind));
+      
+      // Store this stream in our debug reference
+      remoteStreamsDebug.current[`${userId}-${streamType}`] = stream;
+      
+      // Decide which state to update based on stream type
+      if (streamType === 'screen') {
+        setRemoteScreens(prev => ({
+          ...prev,
+          [userId]: stream
+        }));
+      } else {
+        setRemoteStreams(prev => ({
+          ...prev,
+          [userId]: stream
+        }));
+      }
     };
 
     const handleUserLeft = (userId) => {
       console.log(`User left: ${userId}`);
+      
+      // Remove from both states
       setRemoteStreams(prev => {
         const newStreams = { ...prev };
         delete newStreams[userId];
         return newStreams;
       });
+      
+      setRemoteScreens(prev => {
+        const newScreens = { ...prev };
+        delete newScreens[userId];
+        return newScreens;
+      });
+      
+      // Clean up the references
+      if (remoteVideoRefs.current[userId]) {
+        if (remoteVideoRefs.current[userId].srcObject) {
+          remoteVideoRefs.current[userId].srcObject.getTracks().forEach(track => track.stop());
+        }
+        remoteVideoRefs.current[userId].srcObject = null;
+        delete remoteVideoRefs.current[userId];
+      }
+      
+      if (remoteScreenRefs.current[userId]) {
+        if (remoteScreenRefs.current[userId].srcObject) {
+          remoteScreenRefs.current[userId].srcObject.getTracks().forEach(track => track.stop());
+        }
+        remoteScreenRefs.current[userId].srcObject = null;
+        delete remoteScreenRefs.current[userId];
+      }
     };
 
+    // Initial fetch of existing remote streams from context
+    const fetchExistingStreams = () => {
+      if (typeof getRemoteStreams === 'function') {
+        const existingStreams = getRemoteStreams();
+        console.log('Fetched existing remote streams:', existingStreams);
+        
+        if (existingStreams && Object.keys(existingStreams).length > 0) {
+          // Process existing streams and separate video from screen sharing
+          const videoStreams = {};
+          const screenStreams = {};
+          
+          Object.entries(existingStreams).forEach(([key, stream]) => {
+            if (key.includes('screen-')) {
+              // Extract the user ID from the key (remove 'screen-' prefix)
+              const userId = key.replace('screen-', '');
+              screenStreams[userId] = stream;
+            } else {
+              videoStreams[key] = stream;
+            }
+          });
+          
+          if (Object.keys(videoStreams).length > 0) {
+            setRemoteStreams(videoStreams);
+          }
+          
+          if (Object.keys(screenStreams).length > 0) {
+            setRemoteScreens(screenStreams);
+          }
+        }
+      }
+    };
+
+    // Subscribe to events when room is available
     if (currentRoom) {
       console.log(`Setting up event listeners for room: ${currentRoom}`);
       subscribe('user-joined', handleUserJoined);
       subscribe('user-left', handleUserLeft);
+      subscribe('remote-stream-ready', handleUserJoined); // Add this if your socket context emits this event
+      
+      // Get any existing streams
+      fetchExistingStreams();
     }
 
     return () => {
       unsubscribe('user-joined', handleUserJoined);
       unsubscribe('user-left', handleUserLeft);
+      unsubscribe('remote-stream-ready', handleUserJoined);
     };
-  }, [currentRoom, subscribe, unsubscribe]);
+  }, [currentRoom, subscribe, unsubscribe, getRemoteStreams]);
 
-  // Update video elements when remote streams change
+ 
+
+  // Separately handle screen sharing streams
   useEffect(() => {
-    Object.entries(remoteStreams).forEach(([userId, stream]) => {
-      if (remoteVideoRefs.current[userId] && stream) {
-        console.log(`Assigning stream for user ${userId} to video element`);
-        remoteVideoRefs.current[userId].srcObject = stream;
+    console.log('Remote screen streams updated:', Object.keys(remoteScreens));
+    
+    Object.entries(remoteScreens).forEach(([userId, stream]) => {
+      if (!stream) {
+        console.warn(`Screen stream for user ${userId} is null or undefined`);
+        return;
+      }
+      
+      // Get existing screen element or create one if it doesn't exist
+      let screenElement = remoteScreenRefs.current[userId];
+      
+      if (!screenElement) {
+        console.log(`Creating new screen element for user ${userId}`);
+        screenElement = document.createElement('video');
+        screenElement.autoplay = true;
+        screenElement.playsInline = true;
+        remoteScreenRefs.current[userId] = screenElement;
+      }
+      
+      // Only update srcObject if it's different
+      if (screenElement.srcObject !== stream) {
+        console.log(`Assigning screen stream for user ${userId}`, stream);
+        screenElement.srcObject = stream;
         
         // Ensure the video plays
-        remoteVideoRefs.current[userId].play().catch(err => {
-          console.warn(`Failed to play remote video: ${err.message}`);
+        screenElement.play().catch(err => {
+          console.warn(`Failed to play remote screen for user ${userId}: ${err.message}`);
         });
       }
     });
-  }, [remoteStreams]);
+  }, [remoteScreens]);
 
   // Synchronize isInCall state with videoEnabled prop from parent
   useEffect(() => {
     console.log(`videoEnabled changed: ${videoEnabled}, isInCall: ${isInCall}`);
     
-    // If the parent component enables video but we're not in a call
     if (videoEnabled && !isInCall) {
-      // Start a video call to match the parent state
       handleStartCall();
     } 
-    // If the parent component disables video but we're in a call
     else if (!videoEnabled && isInCall) {
-      // End the call to match the parent state
       handleEndCall();
     }
   }, [videoEnabled, isInCall]);
@@ -170,7 +283,7 @@ const VideoCall = forwardRef(({
         localVideoRef.current.srcObject = stream;
       }
       
-      // Direct assignment to parent's videoRef - this is key for displaying video
+      // Direct assignment to parent's videoRef
       if (videoRef && videoRef.current) {
         videoRef.current.srcObject = stream;
         console.log("Stream assigned to parent videoRef");
@@ -182,7 +295,7 @@ const VideoCall = forwardRef(({
       }
       
       setIsInCall(true);
-      toggleSocketVideo(true); // Make sure socket state is in sync
+      toggleSocketVideo(true);
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -193,7 +306,7 @@ const VideoCall = forwardRef(({
     console.log("Ending video call...");
     stopVideoCall();
     setIsInCall(false);
-    toggleSocketVideo(false); // Make sure socket state is in sync
+    toggleSocketVideo(false);
     
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
@@ -208,10 +321,10 @@ const VideoCall = forwardRef(({
   const handleToggleVideoCall = () => {
     if (isInCall) {
       handleEndCall();
-      toggleVideo(false); // Update parent's state
+      toggleVideo(false);
     } else {
       handleStartCall();
-      toggleVideo(true); // Update parent's state
+      toggleVideo(true);
     }
   };
 
@@ -233,42 +346,51 @@ const VideoCall = forwardRef(({
         screenVideoRef.current.srcObject = stream;
       }
       
-      // Then assign to parent's ref
+      // Then assign to parent's ref with improved handling
       if (screenShareRef && screenShareRef.current) {
         console.log("Parent screenShareRef exists, assigning stream");
         
-        // Clear existing srcObject first
+        // A direct approach first - clear then set
         screenShareRef.current.srcObject = null;
         
-        // Assign the new stream with a small delay
+        // Wait a moment for the browser to process
         setTimeout(() => {
-          screenShareRef.current.srcObject = stream;
-          console.log("Stream assigned to parent screenShareRef");
-          
-          // Try to force play with a small delay to ensure DOM is ready
-          setTimeout(() => {
-            if (screenShareRef.current) {
-              screenShareRef.current.play().catch(err => {
-                console.warn(`Failed to play screen share video: ${err.message}`);
-              });
-            }
-          }, 100);
+          if (screenShareRef.current) {
+            screenShareRef.current.srcObject = stream;
+            console.log("Stream assigned to parent screenShareRef");
+            
+            // Force play with small delay
+            setTimeout(() => {
+              if (screenShareRef.current) {
+                screenShareRef.current.play().catch(err => {
+                  console.warn(`Failed to play screen share: ${err.message}`);
+                  
+                  // If autoplay fails, try again with user interaction
+                  if (screenShareRef.current) {
+                    const playPromise = screenShareRef.current.play();
+                    if (playPromise !== undefined) {
+                      playPromise.catch(e => {
+                        console.log('Play prevented, waiting for user interaction');
+                      });
+                    }
+                  }
+                });
+              }
+            }, 100);
+          }
         }, 100);
-      } else {
-        console.warn("No screenShareRef provided from parent component or ref.current is null");
       }
       
       setIsScreenSharing(true);
       
-      // Create a clone of the stream before passing it to the parent
-      // This can help avoid issues with stream ownership and lifecycle
+      // Create a clone of the stream
       const streamClone = new MediaStream();
       stream.getVideoTracks().forEach(track => streamClone.addTrack(track));
       
-      // Notify parent component about screen sharing state AND pass the stream
+      // Notify parent component
       if (onScreenShareChange) {
-        console.log("Notifying parent component about screen sharing with stream");
-        onScreenShareChange(true, streamClone);  // Pass the cloned stream to parent
+        console.log("Notifying parent about screen sharing");
+        onScreenShareChange(true, streamClone);
       }
     } catch (error) {
       console.error('Failed to start screen sharing:', error);
@@ -284,14 +406,12 @@ const VideoCall = forwardRef(({
       screenVideoRef.current.srcObject = null;
     }
     
-    // Clear parent's ref if available
     if (screenShareRef && screenShareRef.current) {
       screenShareRef.current.srcObject = null;
     }
     
     setIsScreenSharing(false);
     
-    // Notify parent component about screen sharing state with null stream
     if (onScreenShareChange) {
       onScreenShareChange(false, null);
     }
@@ -301,14 +421,10 @@ const VideoCall = forwardRef(({
   const approveStudentVideo = (studentId) => {
     console.log(`Approving student ${studentId} for video`);
     setApprovedStudents(prev => [...prev, studentId]);
-    
-    // Remove from pending list
     setPendingHandRaises(prev => prev.filter(student => student.id !== studentId));
     
-    // Here you would emit a socket event to notify the student they can turn on video
-    // This should match what your SocketContext expects
+    // Emit approval event if socket methods are available
     if (isConnected && currentRoom) {
-      // Using the emit method from useSocket
       // Example: emit('approve-student-video', { studentId, roomId: currentRoom });
     }
   };
@@ -316,11 +432,7 @@ const VideoCall = forwardRef(({
   // Deny student's request to enable video
   const denyStudentVideo = (studentId) => {
     console.log(`Denying student ${studentId} for video`);
-    // Remove from pending list
     setPendingHandRaises(prev => prev.filter(student => student.id !== studentId));
-    
-    // Here you would emit a socket event to notify the student their request was denied
-    // Example: emit('deny-student-video', { studentId, roomId: currentRoom });
   };
 
   // Student can check if they're approved to turn on video
@@ -328,7 +440,7 @@ const VideoCall = forwardRef(({
     return isTeacher || approvedStudents.includes(currentUser?._id);
   };
 
-  // Handle tooltip visibility
+  // Tooltip handlers
   const handleShowTooltip = (text, e) => {
     setTooltipText(text);
     setShowTooltip(true);
@@ -459,16 +571,163 @@ const VideoCall = forwardRef(({
     );
   };
 
-  // Main component render - removed all debug elements
+  // Improved remote video rendering with direct DOM refs and better visual feedback
+const renderRemoteVideos = () => {
+  const videoStreamKeys = Object.keys(remoteStreams);
+  const screenStreamKeys = Object.keys(remoteScreens);
+
+  if (videoStreamKeys.length === 0 && screenStreamKeys.length === 0) {
+    return (
+      <div
+        className={`mt-2 p-2 text-center rounded ${
+          darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+        }`}
+      >
+        No remote participants
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      {/* Show screen share first if available */}
+      {screenStreamKeys.length > 0 && (
+        <div className="mb-4">
+          <h4
+            className={`text-sm font-medium mb-2 ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
+            Screen Sharing
+          </h4>
+          <div className="flex flex-col gap-2">
+            {screenStreamKeys.map((userId) => (
+              <div
+                key={`screen-${userId}`}
+                className={`w-full h-48 relative overflow-hidden rounded-lg ${
+                  darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                }`}
+              >
+                <video
+                  key={`screen-video-${userId}`}
+                  ref={(el) => {
+                    if (el) {
+                      remoteScreenRefs.current[userId] = el;
+                      const stream = remoteScreens[userId];
+                      if (stream && el.srcObject !== stream) {
+                        el.srcObject = stream;
+                        el.play().catch((err) => {
+                          console.warn(
+                            `Failed to play screen share for ${userId}: ${err.message}`
+                          );
+                        });
+                      }
+                    }
+                  }}
+                  className="w-full h-full object-contain"
+                  autoPlay
+                  playsInline
+                />
+                <div
+                  className={`absolute bottom-0 left-0 right-0 px-2 py-1 text-xs ${
+                    darkMode
+                      ? 'bg-gray-900 bg-opacity-70 text-white'
+                      : 'bg-white bg-opacity-70 text-gray-800'
+                  }`}
+                >
+                  Screen Share: {userId.substring(0, 6)}...
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Render participant videos */}
+      {videoStreamKeys.length > 0 && (
+        <>
+          <h4
+            className={`text-sm font-medium mb-2 ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
+            Remote Participants ({videoStreamKeys.length})
+          </h4>
+          <div className="flex gap-2 flex-wrap">
+            {videoStreamKeys.map((userId) => (
+              <div
+                key={`video-${userId}`}
+                className={`w-32 h-24 relative overflow-hidden rounded-lg ${
+                  darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                }`}
+              >
+                <video
+                  key={`participant-video-${userId}`}
+                  ref={(el) => {
+                    if (el) {
+                      remoteVideoRefs.current[userId] = el;
+                      const stream = remoteStreams[userId];
+                      if (stream && el.srcObject !== stream) {
+                        el.srcObject = stream;
+                        el.play().catch((err) => {
+                          console.warn(
+                            `Failed to play remote video for ${userId}: ${err.message}`
+                          );
+                        });
+                      }
+                    }
+                  }}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                />
+                <div
+                  className={`absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center ${
+                    darkMode
+                      ? 'bg-gray-900 bg-opacity-70 text-white'
+                      : 'bg-white bg-opacity-70 text-gray-800'
+                  }`}
+                >
+                  {userId.substring(0, 6)}...
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Debug information when no videos are visible but connections exist */}
+      {videoStreamKeys.length === 0 &&
+        screenStreamKeys.length === 0 &&
+        Object.keys(remoteStreamsDebug.current).length > 0 && (
+          <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
+            <p className="text-sm">
+              Connection established but no video visible. Tracks received:
+              {Object.entries(remoteStreamsDebug.current).map(([id, stream]) => (
+                ` ${id} (${stream
+                  .getTracks()
+                  .map((t) => t.kind)
+                  .join(', ')})`
+              ))}
+            </p>
+          </div>
+        )}
+    </div>
+  );
+};
+
+  // Main component render
   return (
     <div className="flex flex-col">
-      {/* Status info - keeping this minimal status bar */}
+      {/* Status info */}
       <div 
         className={`px-2 py-1 text-xs mb-2 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
       >
         Video State: {isInCall ? 'Active' : 'Inactive'} • 
         Parent State: {videoEnabled ? 'Enabled' : 'Disabled'}
         {isScreenSharing && ' • Screen Sharing: Active'}
+        {Object.keys(remoteStreams).length > 0 && ` • Remote Participants: ${Object.keys(remoteStreams).length}`}
+        {Object.keys(remoteScreens).length > 0 && ` • Remote Screens: ${Object.keys(remoteScreens).length}`}
       </div>
       
       {/* Video controls */}
@@ -477,29 +736,13 @@ const VideoCall = forwardRef(({
       {/* Hand raises approval (for teachers) */}
       {renderHandRaises()}
       
-      {/* Hidden elements for internal use - these are not rendered to the DOM */}
-      <div style={{ display: 'none' }}>
+      {/* Remote videos display */}
+      {renderRemoteVideos()}
+      
+      {/* Hidden elements for internal use */}
+      <div className="hidden">
         <video ref={localVideoRef} autoPlay playsInline muted />
         <video ref={screenVideoRef} autoPlay playsInline />
-      </div>
-      
-      {/* Container for remote video elements */}
-      <div className="mt-2">
-        {Object.keys(remoteStreams).length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            {Object.keys(remoteStreams).map(userId => (
-              <div key={userId} className="w-20 h-20 bg-black bg-opacity-20 rounded">
-                <video
-                  ref={el => remoteVideoRefs.current[userId] = el}
-                  className="w-full h-full object-cover" 
-                  autoPlay
-                  playsInline
-                />
-                <p className="text-xs text-center">{userId.substring(0, 4)}...</p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
