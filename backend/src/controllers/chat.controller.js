@@ -5,7 +5,7 @@ const chatWithISL = async (req, res) => {
 
     try {
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
                 contents: [
                     {
@@ -21,7 +21,8 @@ Reply with only one short sentence. Keep it under 2 sentences. Use clear and nat
                     }
                 ],
                 generationConfig: {
-                    temperature: 0.3,
+                    
+                    temperature: 0.1,
                     maxOutputTokens: 30
                 }
             }
