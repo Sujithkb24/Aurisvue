@@ -5,7 +5,7 @@ import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ClassMode from './components/modes/class';
 import PluginMode from './components/modes/plugin';
-import PluginActivation from './components/plugin/activation';
+// import PluginActivation from './components/plugin/activation';
 import TeacherAnalyticsDashboard from './components/TeacherAnalytics';
 import Quiz from './components/pages/QuizPage'; // Import Quiz component
 import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard component
@@ -15,6 +15,7 @@ import React from 'react';
 import ISLChatbot from './components/pages/Chatbot';
 import { AuthProvider } from './contexts/AuthContext';
 import {SocketProvider} from './contexts/SocketContext'
+import VideoTranscriptionPlugin from './components/modes/plugin';
 
 const AppRouter = () => {
   return (
@@ -27,8 +28,8 @@ const AppRouter = () => {
           <Route path="/signup" element={<Signup />} />
           <Route path="/public" element={<PublicMode />} />
           <Route path="/class/:teacherId?" element={<ClassMode />} />
-          <Route path="/plugin" element={<PluginMode />} />
-          <Route path="/setup" element={<PluginActivation />} />
+          <Route path="/plugin" element={<VideoTranscriptionPlugin />} />
+          {/* <Route path="/setup" element={<PluginActivation />} /> */}
           <Route path="/teacher-analytics" element={<TeacherAnalyticsDashboard />} />
           <Route path="/quiz" element={<Quiz />} /> {/* Quiz route */}
           <Route path="/chatbot" element={<ISLChatbot />} /> {/* Chatbot route */}

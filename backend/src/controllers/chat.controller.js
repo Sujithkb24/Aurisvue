@@ -15,13 +15,12 @@ const chatWithISL = async (req, res) => {
 
 User message: "${prompt}"
 
-Reply with only one short sentence. Keep it under 2 sentences. Use clear and natural English.`
+Reply with only one word as much as possible if not  Keep it under 2 sentences. Use clear and natural English.`
                             }
                         ]
                     }
                 ],
                 generationConfig: {
-                    
                     temperature: 0.1,
                     maxOutputTokens: 30
                 }
