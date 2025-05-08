@@ -26,6 +26,12 @@ export const SocketProvider = ({ children }) => {
   const remoteStreamsRef = useRef({});
   // Keep track of which peer connections are fully established
   const establishedConnections = useRef(new Set());
+  const [remoteStreams, setRemoteStreams] = useState({});
+const [remoteScreens, setRemoteScreens] = useState({});
+
+// Add these two refs to track remote streams and screens
+
+const remoteScreensRef = useRef({});
   
   // Track pending offers to prevent duplicates
   const pendingOffers = useRef(new Set());
@@ -211,7 +217,7 @@ export const SocketProvider = ({ children }) => {
     // Handle incoming video call answer
     socketInstance.on('video_answer', ({ answer, sender }) => {
       console.log('Received video answer from:', sender);
-      handleVideoAnswer(answer, sender);
+      handleVideoAnswer(answer, sender, socketInstance);
     });
 
     socketInstance.on('ice-candidate', ({ candidate, sender, targetType }) => {
@@ -345,11 +351,18 @@ export const SocketProvider = ({ children }) => {
       if (pc && pc.remoteDescription) {
         console.log(`Processing ${candidates.length} buffered ICE candidates for ${peerId}`);
         candidates.forEach((candidate) => {
-          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((error) =>
-            console.error('Error adding buffered ICE candidate:', error)
-          );
+          try {
+            // Add more robust error handling for ICE candidates
+            pc.addIceCandidate(new RTCIceCandidate(candidate))
+              .then(() => console.log(`ICE candidate added successfully for ${peerId}`))
+              .catch((error) => console.error('Error adding buffered ICE candidate:', error));
+          } catch (e) {
+            console.error(`Exception while adding ICE candidate: ${e.message}`);
+          }
         });
         iceCandidateBuffer.current.delete(peerId);
+      } else {
+        console.warn(`Cannot process ICE candidates for ${peerId} - ${pc ? 'no remote description' : 'no peer connection'}`);
       }
     }
   };
@@ -364,63 +377,105 @@ export const SocketProvider = ({ children }) => {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }, // Add more STUN servers
         ],
+        iceCandidatePoolSize: 10, // Increase candidate pool size
       });
   
       pc.ontrack = (event) => {
         console.log(`Track received from ${userId}:`, event.track.kind);
       
+        // CRITICAL FIX: Ensure we're using the right stream key format for screen sharing
+        const streamKey = type === 'screen' ? `screen-${userId}` : userId;
+        
         // Create a new stream if needed
-        const stream = remoteStreamsRef.current[userId] || new MediaStream();
+        let stream;
+        if (type === 'screen') {
+          stream = remoteScreensRef.current[userId] || new MediaStream();
+          remoteScreensRef.current[userId] = stream;
+        } else {
+          stream = remoteStreamsRef.current[userId] || new MediaStream();
+          remoteStreamsRef.current[userId] = stream;
+        }
       
         // Check if this track is already in the stream
         const trackExists = stream.getTracks().some(
-          (t) =>
-            t.id === event.track.id ||
-            (t.kind === event.track.kind && t.label === event.track.label)
+          (t) => t.id === event.track.id
         );
       
         if (!trackExists) {
           stream.addTrack(event.track);
-          console.log(`Added ${event.track.kind} track to stream for ${userId}`);
+          console.log(`Added ${event.track.kind} track to stream for ${userId}, type: ${type}`);
         } else {
           console.log(`Track ${event.track.kind} already exists in stream for ${userId}`);
         }
       
-        // Update the remoteStreamsRef
-        remoteStreamsRef.current[userId] = stream;
+        // Update the appropriate state based on stream type
+        if (type === 'screen') {
+          // Update screen sharing state
+          setRemoteScreens(prev => {
+            const newScreens = { ...prev };
+            newScreens[userId] = stream;
+            return newScreens;
+          });
+        } else {
+          // Update video state
+          setRemoteStreams(prev => {
+            const newStreams = { ...prev };
+            newStreams[userId] = stream;
+            return newStreams;
+          });
+        }
       
-        // Emit an event to notify components about the new stream
+        // Emit an event to notify components
         socketInstance.emit('stream-updated', {
-          userId,
+          userId: streamKey,
           hasAudio: stream.getAudioTracks().length > 0,
           hasVideo: stream.getVideoTracks().length > 0,
+          streamType: type
         });
       };
   
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log(`Sending ICE candidate for ${userId}, connection state: ${pc.iceConnectionState}, gathering state: ${pc.iceGatheringState}`);
-          socketInstance.emit('ice-candidate', {
-            candidate: event.candidate,
-            target: userId,
-            type
-          });
-        } else {
-          console.log(`ICE candidate gathering completed for ${userId}`);
+      // Use our improved ICE candidate handler
+      pc.onicecandidate = (event) => handleIceCandidate(event, userId, socketInstance, type);
+  
+      // Add more connection state monitoring
+      pc.onconnectionstatechange = () => {
+        console.log(`Connection state for ${userId} (${type}):`, pc.connectionState);
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          console.log(`Removing ${type} connection for ${userId} due to state: ${pc.connectionState}`);
+          
+          if (type === 'screen') {
+            setRemoteScreens((prev) => {
+              const newScreens = { ...prev };
+              delete newScreens[userId];
+              return newScreens;
+            });
+            screenPeerConnections.current.delete(userId);
+          } else {
+            setRemoteStreams((prev) => {
+              const newStreams = { ...prev };
+              delete newStreams[userId];
+              return newStreams;
+            });
+            peerConnections.current.delete(userId);
+          }
         }
       };
-  
-      pc.onconnectionstatechange = () => {
-        console.log(`Connection state for ${userId}:`, pc.connectionState);
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-          console.log(`Removing user ${userId} due to connection state: ${pc.connectionState}`);
-          setRemoteStreams((prev) => {
-            const newStreams = { ...prev };
-            delete newStreams[userId];
-            return newStreams;
-          });
-          peerConnections.current.delete(userId);
+      
+      // Add signaling state change monitoring
+      pc.onsignalingstatechange = () => {
+        console.log(`Signaling state for ${userId} (${type}):`, pc.signalingState);
+      };
+      
+      // Add ICE connection state monitoring
+      pc.oniceconnectionstatechange = () => {
+        console.log(`ICE connection state for ${userId} (${type}):`, pc.iceConnectionState);
+        
+        // Handle failed ICE connections
+        if (pc.iceConnectionState === 'failed') {
+          console.log(`Attempting to restart ICE for ${userId}`);
+          pc.restartIce();
         }
       };
   
@@ -435,36 +490,56 @@ export const SocketProvider = ({ children }) => {
   const handleVideoOffer = async (offer, sender, socketInstance) => {
     try {
       console.log(`Processing video offer from ${sender}, creating answer...`);
-  
+    
       // Close any existing connection to ensure a clean state
       if (peerConnections.current.has(sender)) {
         console.log(`Closing existing peer connection with ${sender} before creating a new one`);
         peerConnections.current.get(sender).close();
         peerConnections.current.delete(sender);
+        establishedConnections.current.delete(sender);
       }
-  
+    
       // Create a new peer connection
       const pc = createPeerConnection(sender, socketInstance, 'video');
       if (!pc) {
         throw new Error(`Failed to create peer connection for ${sender}`);
       }
-      peerConnections.current.set(sender, pc); // Add to peerConnections map
-  
-      // Set the remote description
+      
+      // Add to peerConnections map before proceeding
+      peerConnections.current.set(sender, pc);
+      
+      // Add local tracks if we have them
+      if (localStream.current) {
+        localStream.current.getTracks().forEach(track => {
+          try {
+            pc.addTrack(track, localStream.current);
+          } catch (e) {
+            console.error(`Error adding track to peer connection: ${e.message}`);
+          }
+        });
+      }
+    
+      // Set the remote description with improved error handling
       console.log('Setting remote description:', offer);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-  
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log(`Remote description set for ${sender}, signaling state: ${pc.signalingState}`);
+      } catch (e) {
+        console.error(`Error setting remote description: ${e.message}`);
+        throw e;
+      }
+    
       // Process any buffered ICE candidates
       processBufferedCandidates(sender, false);
-  
+    
       // Create an answer
       console.log('Creating answer...');
       const answer = await pc.createAnswer();
-  
+    
       // Set the local description
       console.log('Setting local description...');
       await pc.setLocalDescription(answer);
-  
+    
       // Send the answer back to the sender
       console.log('Sending video answer...');
       socketInstance.emit('video_answer', {
@@ -472,68 +547,53 @@ export const SocketProvider = ({ children }) => {
         roomId: currentRoom,
         target: sender,
       });
+      
+      // Mark this connection as established
+      establishedConnections.current.add(sender);
     } catch (error) {
       console.error('Error handling video offer:', error);
     }
   };
   
   // Handle incoming video answer
-  const handleVideoAnswer = async (answer, sender) => {
-    try {
-      const pc = peerConnections.current.get(sender);
-      
-      if (!pc) {
-        console.warn(`Received video answer from ${sender} but no peer connection exists. Creating a new one.`);
-        
-        // Create a new peer connection on-the-fly
-        const newPc = createPeerConnection(sender, socketInstance, 'video');
-        if (newPc) {
-          peerConnections.current.set(sender, newPc);
-          
-          // Set remote description on the new connection
-          await newPc.setRemoteDescription(new RTCSessionDescription(answer));
-          console.log(`Created new peer connection for ${sender} and set remote description`);
-          
-          // Process buffered candidates after setting remote description
-          processBufferedCandidates(sender, false);
-          
-          // Initiate a new offer since we just created this connection
-          try {
-            const offer = await newPc.createOffer();
-            await newPc.setLocalDescription(offer);
-            
-            // Send the new offer to the remote peer
-            socketInstance.emit('video_offer', {
-              offer: newPc.localDescription,
-              roomId: currentRoom,
-              target: sender
-            });
-            console.log(`Sent new offer to ${sender} after creating connection on-the-fly`);
-          } catch (offerError) {
-            console.error("Error creating new offer:", offerError);
-          }
-        }
-        return;
-      }
-      
-      console.log(`Processing video answer from ${sender}, signaling state: ${pc.signalingState}`);
-      
-      // Simplified check for connection state
-      if (pc.signalingState === 'closed') {
-        console.warn('Cannot set remote description in closed state');
-        return;
-      }
-      
-      // Set the remote description
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log(`Remote description set successfully for ${sender}`);
-      
-      // Process any buffered ICE candidates
-      processBufferedCandidates(sender, false);
-    } catch (error) {
-      console.error('Error handling video answer:', error);
+// Handle incoming video answer
+const handleVideoAnswer = async (answer, sender, socketInstance) => {
+  try {
+    const pc = peerConnections.current.get(sender);
+    
+    if (!pc) {
+      console.warn(`Received video answer from ${sender} but no peer connection exists. Ignoring answer.`);
+      return;
     }
-  };
+    
+    console.log(`Processing video answer from ${sender}, signaling state: ${pc.signalingState}`);
+    
+    // Check if we can set the remote description based on signaling state
+    if (pc.signalingState === 'closed') {
+      console.warn('Cannot set remote description in closed state');
+      return;
+    }
+    
+    // Only set remote description if we're in have-local-offer state
+    if (pc.signalingState !== 'have-local-offer') {
+      console.warn(`Cannot set remote description in ${pc.signalingState} state, expected 'have-local-offer'. Ignoring answer.`);
+      return;
+    }
+    
+    // Set the remote description
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    console.log(`Remote description set successfully for ${sender}`);
+    
+    // Add this peer to established connections
+    establishedConnections.current.add(sender);
+    
+    // Process any buffered ICE candidates
+    processBufferedCandidates(sender, false);
+  } catch (error) {
+    console.error('Error handling video answer:', error);
+  }
+};
+
   
   // Handle incoming screen sharing offer
   const handleScreenOffer = async (offer, sender, socketInstance) => {
@@ -555,8 +615,17 @@ export const SocketProvider = ({ children }) => {
         throw new Error('Failed to create peer connection for screen sharing');
       }
       
-      // Set remote description
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      // Add to screen peer connections map
+      screenPeerConnections.current.set(sender, pc);
+      
+      // Set remote description with improved error handling
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log(`Remote description set for screen from ${sender}, signaling state: ${pc.signalingState}`);
+      } catch (e) {
+        console.error(`Error setting remote description for screen: ${e.message}`);
+        throw e;
+      }
       
       // Process any buffered ICE candidates
       processBufferedCandidates(`screen-${sender}`, true);
@@ -571,11 +640,15 @@ export const SocketProvider = ({ children }) => {
         roomId: currentRoom,
         target: sender
       });
+      
+      // Mark this connection as established
+      establishedConnections.current.add(`screen-${sender}`);
     } catch (error) {
       console.error('Error handling screen offer:', error);
       throw error;
     }
   };
+  
   
   // Handle incoming screen sharing answer
   const handleScreenAnswer = async (answer, sender) => {
@@ -609,29 +682,21 @@ export const SocketProvider = ({ children }) => {
   };
   
   // Handle ICE candidate
-  const handleIceCandidate = (candidate, sender, targetType) => {
-    try {
-      const isScreenConnection = targetType === 'screen';
-      const connectionId = isScreenConnection ? `screen-${sender}` : sender;
+  const handleIceCandidate = (event, userId, socketInstance, type = 'video') => {
+    if (event.candidate) {
+      console.log(`Sending ICE candidate for ${userId}, type: ${type}, state: ${event.target.iceConnectionState}`);
       
-      const pc = isScreenConnection ? 
-                screenPeerConnections.current.get(sender) : 
-                peerConnections.current.get(sender);
+      // Add more details about the ICE candidate for debugging
+      const candidate = event.candidate;
+      console.log(`ICE candidate details - type: ${candidate.type}, protocol: ${candidate.protocol}, address: ${candidate.address}`);
       
-      if (pc && pc.remoteDescription && pc.signalingState !== 'closed') {
-        // If remote description is set and connection isn't closed, add the candidate directly
-        pc.addIceCandidate(new RTCIceCandidate(candidate))
-          .catch(error => console.error(`Error adding ICE candidate to ${connectionId}:`, error));
-      } else {
-        // Otherwise buffer the candidate for later
-        if (!iceCandidateBuffer.current.has(connectionId)) {
-          iceCandidateBuffer.current.set(connectionId, []);
-        }
-        console.log(`Buffering ICE candidate for ${connectionId}`);
-        iceCandidateBuffer.current.get(connectionId).push(candidate);
-      }
-    } catch (error) {
-      console.error('Error handling ICE candidate:', error);
+      socketInstance.emit('ice-candidate', {
+        candidate: event.candidate,
+        target: userId,
+        type
+      });
+    } else {
+      console.log(`ICE candidate gathering completed for ${userId}, type: ${type}`);
     }
   };
   
@@ -663,6 +728,16 @@ export const SocketProvider = ({ children }) => {
           });
         }
       }
+      
+      // Add local tracks to all peer connections
+      const addTracksToConnection = (pc) => {
+        if (localStream.current) {
+          const tracks = localStream.current.getTracks();
+          tracks.forEach(track => {
+            pc.addTrack(track, localStream.current);
+          });
+        }
+      };
       
       // Create peer connections for each user in the room
       for (const userId of roomUsers) {
@@ -696,6 +771,12 @@ export const SocketProvider = ({ children }) => {
             console.error(`Failed to create peer connection for user ${userId}`);
             continue;
           }
+          
+          // Add to peerConnections map
+          peerConnections.current.set(userId, pc);
+          
+          // Add local tracks to the connection
+          addTracksToConnection(pc);
           
           // Create offer
           const offer = await pc.createOffer({
@@ -945,7 +1026,8 @@ export const SocketProvider = ({ children }) => {
     stopScreenSharing,
     toggleAudio,
     toggleVideo,
-    
+    remoteStreams, // Add this
+  remoteScreens,
     // Socket methods
     sendSpeechTranscript,
     resetIslResponse,
