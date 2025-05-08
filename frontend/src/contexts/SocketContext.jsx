@@ -342,29 +342,47 @@ const remoteScreensRef = useRef({});
   
   // Process buffered ICE candidates
   const processBufferedCandidates = (peerId, isScreenConnection = false) => {
-    if (iceCandidateBuffer.current.has(peerId)) {
-      const candidates = iceCandidateBuffer.current.get(peerId);
-      const pc = isScreenConnection
-        ? screenPeerConnections.current.get(peerId.replace('screen-', ''))
-        : peerConnections.current.get(peerId);
-  
-      if (pc && pc.remoteDescription) {
-        console.log(`Processing ${candidates.length} buffered ICE candidates for ${peerId}`);
-        candidates.forEach((candidate) => {
-          try {
-            // Add more robust error handling for ICE candidates
-            pc.addIceCandidate(new RTCIceCandidate(candidate))
-              .then(() => console.log(`ICE candidate added successfully for ${peerId}`))
-              .catch((error) => console.error('Error adding buffered ICE candidate:', error));
-          } catch (e) {
-            console.error(`Exception while adding ICE candidate: ${e.message}`);
-          }
-        });
-        iceCandidateBuffer.current.delete(peerId);
-      } else {
-        console.warn(`Cannot process ICE candidates for ${peerId} - ${pc ? 'no remote description' : 'no peer connection'}`);
-      }
+    if (!iceCandidateBuffer.current.has(peerId)) {
+      console.log(`No buffered candidates for ${peerId}`);
+      return;
     }
+  
+    const candidates = iceCandidateBuffer.current.get(peerId);
+    const pc = isScreenConnection
+      ? screenPeerConnections.current.get(peerId.replace('screen-', ''))
+      : peerConnections.current.get(peerId);
+  
+    if (!pc) {
+      console.warn(`Cannot process candidates: no peer connection for ${peerId}`);
+      return;
+    }
+  
+    if (!pc.remoteDescription) {
+      console.warn(`Cannot process candidates: no remote description set for ${peerId}`);
+      return;
+    }
+  
+    console.log(`Processing ${candidates.length} buffered ICE candidates for ${peerId}`);
+    
+    // Process each candidate with individual promise handling
+    const processingPromises = candidates.map(candidate => {
+      return pc.addIceCandidate(new RTCIceCandidate(candidate))
+        .then(() => console.log(`ICE candidate added successfully for ${peerId}`))
+        .catch(error => {
+          console.error(`Error adding ICE candidate for ${peerId}:`, error);
+          return null; // Return null to keep the promise resolved
+        });
+    });
+    
+    // Wait for all candidates to be processed
+    Promise.all(processingPromises)
+      .then(() => {
+        console.log(`All buffered candidates processed for ${peerId}`);
+        iceCandidateBuffer.current.delete(peerId);
+      })
+      .catch(error => {
+        console.error(`Error in batch processing ICE candidates:`, error);
+      });
   };
   const getRemoteStreams = useCallback(() => {
     return { ...remoteStreamsRef.current };
@@ -376,79 +394,87 @@ const remoteScreensRef = useRef({});
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }, // Add more STUN servers
+          { urls: 'stun:stun1.google.com:19302' },
+          { urls: 'stun:stun2.google.com:19302' },
         ],
-        iceCandidatePoolSize: 10, // Increase candidate pool size
+        iceCandidatePoolSize: 10,
       });
   
       pc.ontrack = (event) => {
         console.log(`Track received from ${userId}:`, event.track.kind);
       
-        // CRITICAL FIX: Ensure we're using the right stream key format for screen sharing
-        const streamKey = type === 'screen' ? `screen-${userId}` : userId;
+        // IMPORTANT - Immediately notify when track received
+        socketInstance.emit('track-received', {
+          userId,
+          trackKind: event.track.kind,
+          type
+        });
+      
+        // Create a consistent reference for this stream - CRITICAL FIX
+        // Use a consistent stream object for this user - create if needed
+        let streamRef = type === 'screen' ? remoteScreensRef : remoteStreamsRef;
         
-        // Create a new stream if needed
-        let stream;
-        if (type === 'screen') {
-          stream = remoteScreensRef.current[userId] || new MediaStream();
-          remoteScreensRef.current[userId] = stream;
-        } else {
-          stream = remoteStreamsRef.current[userId] || new MediaStream();
-          remoteStreamsRef.current[userId] = stream;
+        // Create new stream only if we don't have one yet
+        if (!streamRef.current[userId]) {
+          streamRef.current[userId] = new MediaStream();
         }
-      
-        // Check if this track is already in the stream
-        const trackExists = stream.getTracks().some(
-          (t) => t.id === event.track.id
-        );
-      
+        
+        // Get the established stream reference
+        let stream = streamRef.current[userId];
+        
+        // Ensure we don't add duplicate tracks
+        const trackExists = stream.getTracks().some(t => t.id === event.track.id);
         if (!trackExists) {
           stream.addTrack(event.track);
           console.log(`Added ${event.track.kind} track to stream for ${userId}, type: ${type}`);
+          
+          // CRITICAL FIX: Trigger React state update in a way that ensures proper rendering
+          if (type === 'screen') {
+            // Clone the reference for React state immutability
+            setRemoteScreens(prev => ({
+              ...prev,
+              [userId]: streamRef.current[userId]
+            }));
+          } else {
+            // Clone the reference for React state immutability
+            setRemoteStreams(prev => ({
+              ...prev,
+              [userId]: streamRef.current[userId]
+            }));
+          }
+          
+          // CRITICAL FIX: Dispatch custom event to force UI update
+          window.dispatchEvent(new CustomEvent('stream-track-added', {
+            detail: { userId, trackType: event.track.kind, streamType: type }
+          }));
         } else {
           console.log(`Track ${event.track.kind} already exists in stream for ${userId}`);
         }
-      
-        // Update the appropriate state based on stream type
-        if (type === 'screen') {
-          // Update screen sharing state
-          setRemoteScreens(prev => {
-            const newScreens = { ...prev };
-            newScreens[userId] = stream;
-            return newScreens;
-          });
-        } else {
-          // Update video state
-          setRemoteStreams(prev => {
-            const newStreams = { ...prev };
-            newStreams[userId] = stream;
-            return newStreams;
-          });
-        }
-      
-        // Emit an event to notify components
-        socketInstance.emit('stream-updated', {
-          userId: streamKey,
-          hasAudio: stream.getAudioTracks().length > 0,
-          hasVideo: stream.getVideoTracks().length > 0,
-          streamType: type
-        });
       };
-  
       // Use our improved ICE candidate handler
       pc.onicecandidate = (event) => handleIceCandidate(event, userId, socketInstance, type);
   
-      // Add more connection state monitoring
+      // Connection state monitoring
       pc.onconnectionstatechange = () => {
         console.log(`Connection state for ${userId} (${type}):`, pc.connectionState);
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        
+        // Emit connection state change event
+        socketInstance.emit('connection-state-change', {
+          userId,
+          state: pc.connectionState,
+          type
+        });
+        
+        if (pc.connectionState === 'connected') {
+          console.log(`${type} connection established with ${userId}`);
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
           console.log(`Removing ${type} connection for ${userId} due to state: ${pc.connectionState}`);
-          
+  
           if (type === 'screen') {
             setRemoteScreens((prev) => {
               const newScreens = { ...prev };
               delete newScreens[userId];
+              delete remoteScreensRef.current[userId];
               return newScreens;
             });
             screenPeerConnections.current.delete(userId);
@@ -456,26 +482,46 @@ const remoteScreensRef = useRef({});
             setRemoteStreams((prev) => {
               const newStreams = { ...prev };
               delete newStreams[userId];
+              delete remoteStreamsRef.current[userId];
               return newStreams;
             });
             peerConnections.current.delete(userId);
           }
         }
       };
-      
-      // Add signaling state change monitoring
+  
+      // Signaling state change monitoring
       pc.onsignalingstatechange = () => {
         console.log(`Signaling state for ${userId} (${type}):`, pc.signalingState);
       };
-      
-      // Add ICE connection state monitoring
+  
+      // ICE connection state monitoring
       pc.oniceconnectionstatechange = () => {
         console.log(`ICE connection state for ${userId} (${type}):`, pc.iceConnectionState);
-        
+  
         // Handle failed ICE connections
         if (pc.iceConnectionState === 'failed') {
           console.log(`Attempting to restart ICE for ${userId}`);
           pc.restartIce();
+        } else if (pc.iceConnectionState === 'connected') {
+          console.log(`ICE connection established with ${userId}`);
+          
+          // Check if we have received media tracks
+          const streamRef = type === 'screen' ? remoteScreensRef : remoteStreamsRef;
+          const stream = streamRef.current[userId];
+          
+          if (stream && stream.getTracks().length > 0) {
+            console.log(`Stream for ${userId} has ${stream.getTracks().length} tracks`);
+            
+            // Update state after a short delay to ensure tracks are fully processed
+            setTimeout(() => {
+              if (type === 'screen') {
+                setRemoteScreens(prev => ({...prev, [userId]: stream}));
+              } else {
+                setRemoteStreams(prev => ({...prev, [userId]: stream}));
+              }
+            }, 100);
+          }
         }
       };
   
@@ -490,35 +536,52 @@ const remoteScreensRef = useRef({});
   const handleVideoOffer = async (offer, sender, socketInstance) => {
     try {
       console.log(`Processing video offer from ${sender}, creating answer...`);
-    
+  
       // Close any existing connection to ensure a clean state
       if (peerConnections.current.has(sender)) {
         console.log(`Closing existing peer connection with ${sender} before creating a new one`);
-        peerConnections.current.get(sender).close();
+        const oldPc = peerConnections.current.get(sender);
+        if (oldPc) {
+          try {
+            oldPc.ontrack = null; // Remove event handler to prevent memory leaks
+            oldPc.onicecandidate = null;
+            oldPc.oniceconnectionstatechange = null;
+            oldPc.onsignalingstatechange = null;
+            oldPc.onconnectionstatechange = null;
+            oldPc.close();
+          } catch (e) {
+            console.warn(`Error closing old connection: ${e.message}`);
+          }
+        }
         peerConnections.current.delete(sender);
         establishedConnections.current.delete(sender);
       }
-    
+  
       // Create a new peer connection
       const pc = createPeerConnection(sender, socketInstance, 'video');
       if (!pc) {
         throw new Error(`Failed to create peer connection for ${sender}`);
       }
-      
+  
       // Add to peerConnections map before proceeding
       peerConnections.current.set(sender, pc);
-      
+  
       // Add local tracks if we have them
       if (localStream.current) {
-        localStream.current.getTracks().forEach(track => {
+        const tracks = localStream.current.getTracks();
+        console.log(`Adding ${tracks.length} local tracks to peer connection for ${sender}`);
+        
+        for (const track of tracks) {
           try {
             pc.addTrack(track, localStream.current);
           } catch (e) {
             console.error(`Error adding track to peer connection: ${e.message}`);
           }
-        });
+        }
+      } else {
+        console.warn('No local stream available to add tracks to peer connection');
       }
-    
+  
       // Set the remote description with improved error handling
       console.log('Setting remote description:', offer);
       try {
@@ -528,18 +591,18 @@ const remoteScreensRef = useRef({});
         console.error(`Error setting remote description: ${e.message}`);
         throw e;
       }
-    
+  
       // Process any buffered ICE candidates
       processBufferedCandidates(sender, false);
-    
+  
       // Create an answer
       console.log('Creating answer...');
       const answer = await pc.createAnswer();
-    
+  
       // Set the local description
       console.log('Setting local description...');
       await pc.setLocalDescription(answer);
-    
+  
       // Send the answer back to the sender
       console.log('Sending video answer...');
       socketInstance.emit('video_answer', {
@@ -547,9 +610,15 @@ const remoteScreensRef = useRef({});
         roomId: currentRoom,
         target: sender,
       });
-      
+  
       // Mark this connection as established
       establishedConnections.current.add(sender);
+      
+      // Notify UI of connection established
+      socketInstance.emit('connection-established', {
+        userId: sender,
+        type: 'video'
+      });
     } catch (error) {
       console.error('Error handling video offer:', error);
     }
@@ -808,6 +877,7 @@ const handleVideoAnswer = async (answer, sender, socketInstance) => {
       throw error;
     }
   };
+  
   
   // Start screen sharing
   const startScreenSharing = async () => {

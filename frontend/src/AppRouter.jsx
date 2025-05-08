@@ -3,7 +3,7 @@ import App from './App';
 import PublicMode from './components/modes/public';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
-import ClassMode from './components/modes/class';
+import ClassMode from './components/modes/class2';
 import PluginMode from './components/modes/plugin';
 // import PluginActivation from './components/plugin/activation';
 import TeacherAnalyticsDashboard from './components/TeacherAnalytics';

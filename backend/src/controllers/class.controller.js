@@ -4,30 +4,34 @@ import User from '../models/user.model.js';
 
 // Create new class session (Teacher only)
 export const createClassSession = async (req, res) => {
-    try {
-      const { title, description, video = false } = req.body;
-      const userId = req.user.uid;
-      const session = await ClassSession.create({
-        title,
-        description,
-        createdBy: userId,
-        code: nanoid(8),
-        isActive: true,
-        videoEnabled: video
-      });
-  
-      res.status(201).json({ session });
-    } catch (error) {
-      console.error("Error creating class session:", error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  };
-  
+  try {
+    const { title, description, video = false } = req.body;
+    const userId = req.user.uid;
+    const code = nanoid(8);
+    const jitsiLink = `https://meet.jit.si/${code}`;
+
+    const session = await ClassSession.create({
+      title,
+      description,
+      createdBy: userId,
+      code,
+      isActive: true,
+      videoEnabled: video,
+      jitsiLink
+    });
+    res.status(201).json({ session });
+  } catch (error) {
+    console.error("Error creating class session:", error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Get active session for teacher
 export const getActiveSession = async (req, res) => {
   try {
     const userId = req.user.uid;
     const activeSession = await ClassSession.findOne({ createdBy: userId, isActive: true });
+    console.log(activeSession)
     res.status(200).json({ activeSession });
   } catch (err) {
     console.error('Error fetching active session:', err);

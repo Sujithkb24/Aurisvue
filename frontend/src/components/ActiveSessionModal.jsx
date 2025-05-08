@@ -27,6 +27,7 @@ const ActiveSessionModal = ({
   };
   
   const handleCreateNewClass = () => {
+    console.log("hit")
     onCreateNewClass();
     setShowModal(false);
   };
