@@ -52,35 +52,36 @@ const Quiz = ({ darkMode = true }) => {
     try {
       setLoading(true);
       setError(null);
-      
+  
       const response = await axios.get(`${API_BASE_URL}/questions`, {
-        params: { difficulty, count: questionCount }
+        params: { difficulty, count: questionCount },
       });
   
-      // Log the full response for debugging
       console.log("API Response:", JSON.stringify(response.data, null, 2));
   
-      // Extract quiz data
+      // Extract quiz data (some APIs wrap it in a 'quiz' object, some don't)
       const quizData = response.data?.quiz || response.data;
-      
-      if (!quizData || !quizData.questions || !quizData.answers) {
-        throw new Error('Invalid quiz data: Missing questions or answers');
+  
+      if (
+        !quizData ||
+        !Array.isArray(quizData.questions) ||
+        !Array.isArray(quizData.answers)
+      ) {
+        throw new Error("Invalid quiz data structure: 'questions' or 'answers' missing or not arrays.");
       }
   
-      // Transform questions and answers into the expected format
       const parsedQuestions = quizData.questions.map((question, index) => {
         const answerData = quizData.answers[index];
-        
+  
         if (!answerData) {
           throw new Error(`No answer found for question ${index + 1}`);
         }
   
         return {
           question: question.text,
-          // The API sends options as strings directly, not as objects
           options: question.options,
           answerIndex: answerData.correctIndex,
-          correctAnswer: answerData.correctAnswer
+          correctAnswer: answerData.correctAnswer,
         };
       });
   
@@ -93,7 +94,7 @@ const Quiz = ({ darkMode = true }) => {
       setLoading(false);
     }
   };
-
+  
   // Initialize quiz on component mount
   useEffect(() => {
     fetchQuestions();

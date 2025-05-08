@@ -14,7 +14,7 @@ const pdfPath= path.join(__dirname, '../test/data/isl_tb.pdf');
 export const getQuestions = async (req, res) => {
   try {
     const context = await parsePDF(pdfPath);
-    const quiz = await generateQuiz(context);
+    const quiz = await generateQuiz(context); // now quiz is JSON, not text
     res.status(200).json({ quiz });
   } catch (error) {
     console.error('Final error:', error);
@@ -25,6 +25,7 @@ export const getQuestions = async (req, res) => {
     });
   }
 };
+
 // Submit quiz answers and save score
 export const submitQuiz = async (req, res) => {
   const { userId, score, totalQuestions, difficulty } = req.body;

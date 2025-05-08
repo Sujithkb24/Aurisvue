@@ -12,6 +12,7 @@ import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard 
 import Training from './components/pages/TrainingPage'; // Import Training component
 import Dashboard from './components/pages/Dashboard'; // Import Dashboard component
 import React from 'react';
+import ISLChatbot from './components/pages/Chatbot';
 import { AuthProvider } from './contexts/AuthContext';
 import {SocketProvider} from './contexts/SocketContext'
 
@@ -30,10 +31,12 @@ const AppRouter = () => {
           <Route path="/setup" element={<PluginActivation />} />
           <Route path="/teacher-analytics" element={<TeacherAnalyticsDashboard />} />
           <Route path="/quiz" element={<Quiz />} /> {/* Quiz route */}
+          <Route path="/chatbot" element={<ISLChatbot />} /> {/* Chatbot route */}
           <Route path="/leaderboard" element={<Leaderboard />} /> {/* Leaderboard route */}
           <Route path="/training" element={<Training />} /> {/* Training route */}
           <Route path="/dashboard" element={<Dashboard />} /> {/* Dashboard route */}
           <Route path="*" element={<Navigate to="/" replace />} /> {/* Fallback route */}
+          
         </Routes>
         </SocketProvider>
       </AuthProvider>

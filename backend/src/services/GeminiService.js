@@ -4,28 +4,56 @@ dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const generateQuiz = async (context) => {
-  const prompt = `Based on the following study material, generate 5 multiple-choice questions with 4 options each and indicate the correct answer:
- 
+
+
+// Function to generate quiz based on difficulty level
+const generateQuiz = async (context, difficulty = 'medium') => {
+  const prompt = `Based on the following study material, generate multiple-choice questions with 4 options each and indicate the correct answer. The difficulty of the questions should be ${difficulty}:
+
+the thin
+
 ${context}
 
-Format:
-1. Question?
-   a) Option A
-   b) Option B
-   c) Option C
-   d) Option D
-Answer: b) Option B
+Format (JSON, without markdown or triple backticks):
+{
+  "questions": [
+    {
+      "text": "Question?",
+      "options": ["Option A", "Option B", "Option C", "Option D"]
+    }
+  ],
+  "answers": [
+    {
+      "correctAnswer": "Option B",
+      "correctIndex": 1
+    }
+  ]
+}
 
-Ensure the questions are relevant to the provided material.`;
+Only return valid pure JSON. Do not include markdown or text.
+
+Make sure to generate a different set of questions each time, ensuring they are not repeated from previous outputs.`;
 
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let text = await response.text();
 
-  return text;
+    // Strip Markdown-style code fences
+    text = text.replace(/```(?:json)?\s*([\s\S]*?)\s*```/, '$1').trim();
+
+    // Try parsing the response as JSON
+    const parsed = JSON.parse(text);
+    return parsed;
+  } catch (err) {
+    console.error('Error generating quiz:', err.message);
+    throw new Error('Failed to generate quiz.');
+  }
 };
 
 export default generateQuiz;
+
+
+
