@@ -46,7 +46,8 @@ const remoteScreensRef = useRef({});
       }
       return;
     }
-
+  
+    
     const initializeSocket = async () => {
       try {
         const token = await getToken();
@@ -156,7 +157,19 @@ const remoteScreensRef = useRef({});
       screenStream.current = null;
     }
   };
-  
+  const broadcastTeacherSpeech = (sessionId, text, isFinal = false) => {
+    if (!socket || !sessionId) return;
+    
+    const speechData = {
+      sessionId,
+      text,
+      isFinal,
+      timestamp: new Date()
+    };
+    
+    console.log('Broadcasting teacher speech:', speechData);
+    socket.emit('teacher_speech', speechData);
+  };
   // Cleanup peer connections
   const cleanupPeerConnections = () => {
     console.log('Cleaning up peer connections...');
@@ -1129,6 +1142,7 @@ const handleVideoAnswer = async (answer, sender, socketInstance) => {
     leaveRoom,
     subscribe,
     unsubscribe,
+    broadcastTeacherSpeech,
     emit,
     getRemoteStreams
   };
