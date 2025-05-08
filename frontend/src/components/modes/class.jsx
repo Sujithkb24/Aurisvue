@@ -452,29 +452,63 @@ const stopCamera = () => {
   }, [socket, isTeacher]);
  
   const handleScreenShareChange = (isSharing, stream) => {
+    console.log("Screen share change detected, isSharing:", isSharing);
     setIsScreenSharing(isSharing);
-    
+  
     // Use the passed stream directly
     if (isSharing && stream) {
-      console.log("Screen share change detected with stream:", stream);
+      console.log("Screen share stream received:", stream);
+      console.log("Stream active:", stream.active);
+      console.log("Video tracks:", stream.getVideoTracks().length);
       
-      // Update the screen share ref with the stream
-      if (screenShareRef && screenShareRef.current) {
-        console.log("Assigning stream to screenShareRef");
-        screenShareRef.current.srcObject = stream;
-        
-        // Ensure video plays by forcing play after a small delay
-        setTimeout(() => {
-          if (screenShareRef.current) {
-            screenShareRef.current.play().catch(err => {
-              console.warn(`Failed to play screen share: ${err.message}`);
-            });
+      // Get detailed track info
+      const videoTracks = stream.getVideoTracks();
+      videoTracks.forEach((track, index) => {
+        console.log(`Track ${index} details:`, {
+          enabled: track.enabled,
+          id: track.id,
+          kind: track.kind,
+          readyState: track.readyState,
+          muted: track.muted
+        });
+      });
+  
+      // Ensure we're working with the DOM after it's ready
+      setTimeout(() => {
+        if (screenShareRef && screenShareRef.current) {
+          console.log("Screen share ref found, attempting to assign stream");
+          
+          // First, clear any existing srcObject
+          screenShareRef.current.srcObject = null;
+          
+          // Then assign the new stream
+          screenShareRef.current.srcObject = stream;
+          
+          // Make sure autoplay is enabled
+          screenShareRef.current.autoplay = true;
+          
+          // Force play with error handling
+          const playPromise = screenShareRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                console.log("Screen share video playing successfully");
+              })
+              .catch(err => {
+                console.error("Error playing screen share video:", err);
+                
+                // Attempt to play again after user interaction
+                document.addEventListener('click', function playVideoOnClick() {
+                  screenShareRef.current.play();
+                  document.removeEventListener('click', playVideoOnClick);
+                }, { once: true });
+              });
           }
-        }, 100);
-      } else {
-        console.warn("screenShareRef or screenShareRef.current is null in parent component");
-      }
-      
+        } else {
+          console.error("screenShareRef or screenShareRef.current is null");
+        }
+      }, 300); // Slightly longer delay to ensure DOM is ready
+  
       // Update debug info
       setScreenShareDebug({
         isConnected: true,
@@ -486,7 +520,6 @@ const stopCamera = () => {
       if (screenShareRef && screenShareRef.current) {
         screenShareRef.current.srcObject = null;
       }
-      
       setScreenShareDebug({
         isConnected: false,
         hasStream: false,
@@ -494,6 +527,7 @@ const stopCamera = () => {
       });
     }
   };
+  
   
   // Load session data
   const loadSessionData = async (sessionId) => {
@@ -1310,21 +1344,22 @@ const stopCamera = () => {
               {/* Video call component integration */}
               {(isTeacher || handRaised) && (
                 <div className="px-4 pb-4">
-              <VideoCall 
-      ref={videoCallRef} 
-      isTeacher={isTeacher} 
-      handRaised={handRaised} 
-      videoEnabled={videoEnabled} 
-      darkMode={darkMode} 
-      primaryColor={primaryColor} 
-      primaryHoverColor={primaryHoverColor} 
-      classSession={classSession} 
-      videoRef={videoRef} 
-      screenShareRef={screenShareRef}  // Passing the reference correctly
-      toggleVideo={toggleVideo} 
-      activeStudents={activeStudents} 
-      onScreenShareChange={handleScreenShareChange} 
-      currentUser={currentUser} 
+              <VideoCall
+      // Your existing props
+      isTeacher={isTeacher}
+      handRaised={handRaised}
+      videoEnabled={videoEnabled}
+      darkMode={darkMode}
+      primaryColor={primaryColor}
+      primaryHoverColor={primaryHoverColor}
+      classSession={classSession}
+      videoRef={videoRef}
+      screenShareRef={screenShareRef}
+      toggleVideo={toggleVideo}
+      activeStudents={activeStudents}
+      onScreenShareChange={handleScreenShareChange}
+      currentUser={currentUser}
+      ref={videoCallRef}
     />
                 </div>
               )}
