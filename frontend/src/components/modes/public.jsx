@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import Header from '../header';
-import { useSocket } from '../../contexts/SocketContext'; // Only import useSocket hook
+import { SocketProvider, useSocket } from '../../contexts/SocketContext'; // Only import useSocket hook
 
 const PublicMode = ({ darkMode = true, onBack }) => {
   const [isMicActive, setIsMicActive] = useState(false);
@@ -98,6 +98,15 @@ const PublicMode = ({ darkMode = true, onBack }) => {
   const isMobile = windowWidth < 768;
   const shouldShowMainControls = !isMobile || (isMobile && !showFloatingControls);
 
+const [shouldTranslate, setShouldTranslate] = useState(false);
+
+const handleTranslateClick = () => {
+  if (detectedSpeech && detectedSpeech.trim() !== '') {
+    setShouldTranslate(true);
+  }
+};
+
+
   return (
     <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
       <Header title="Public Mode" showBackButton={true} onBack={onBack} darkMode={darkMode} />
@@ -105,13 +114,17 @@ const PublicMode = ({ darkMode = true, onBack }) => {
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* 3D Model View using ISLViewer */}
         <div className="w-full md:w-2/3 h-1/2 md:h-full relative">
-          <ISLViewer
-            darkMode={darkMode}
-            mode="public"
-            speechInput={detectedSpeech}
-            isListening={isMicActive}
-            islResponse={islResponse}
-          />
+        <SocketProvider>
+        <ISLViewer
+  darkMode={darkMode}
+  mode="public"
+  speechInput={detectedSpeech}
+  isListening={isMicActive}
+  islResponse={islResponse}
+  shouldTranslate={shouldTranslate}
+  onTranslationDone={() => setShouldTranslate(false)}
+/>
+          </SocketProvider>
 
           {/* Current transcript overlay */}
           {detectedSpeech && (
@@ -153,6 +166,19 @@ const PublicMode = ({ darkMode = true, onBack }) => {
                 {isMicActive ? 'Stop Listening' : 'Start Listening'}
               </button>
             </div>
+            {detectedSpeech && (
+  <div className="absolute bottom-4 left-4 right-4 flex flex-col items-center space-y-2">
+    <div className={`px-4 py-2 rounded-lg bg-opacity-75 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+      <p className="text-center">{detectedSpeech}</p>
+    </div>
+    <button
+      onClick={handleTranslateClick}
+      className={`px-4 py-2 rounded-md font-medium shadow-md ${darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
+    >
+      Translate to ISL
+    </button>
+  </div>
+)}
 
             {/* History section */}
             <div className="mt-4">
