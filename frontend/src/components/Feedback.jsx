@@ -8,6 +8,8 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
   const [specificFeedback, setSpecificFeedback] = useState('');
   const [problematicWords, setProblematicWords] = useState([]);
   const [selectedWords, setSelectedWords] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
   const { socket } = useSocket();
   const { getToken } = useAuth();
 
@@ -35,7 +37,10 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
 
   // Send enhanced feedback to backend
   const sendFeedback = async (understood) => {
-    if (!classSession) return;
+    if (!classSession || !classSession._id) {
+      setError("Class session information is missing");
+      return;
+    }
     
     // Update the parent component's state
     setUnderstanding(understood);
@@ -46,19 +51,21 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
     
     // Prepare feedback data
     const feedbackData = {
-      studentId: currentUser.uid,
       sessionId: classSession._id,
       understood,
       timestamp: new Date().toISOString(),
-      transcript: detectedSpeech,
+      transcript: detectedSpeech || "",
       conversionResult: islConversionResult,
       specificFeedback: specificFeedback || null,
       problematicWords: understood ? [] : selectedWords
     };
     
     try {
+      setIsSubmitting(true);
+      setError(null);
+      
       const token = await getToken();
-      const response = await fetch('/api/analytics/feedback', {
+      const response = await fetch('http://localhost:5000/api/analytics/feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,17 +74,19 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
         body: JSON.stringify(feedbackData)
       });
       
+      const responseData = await response.json();
+      
       if (response.ok) {
-        // Emit feedback to teacher
+        // Emit feedback to teacher via socket
         socket.emit('student_feedback', {
           studentId: currentUser.uid,
           studentName: currentUser.name,
           understood,
-          sessionId: classSession.id,
+          sessionId: classSession.code,
           specificFeedback: specificFeedback || null,
           problematicWords: understood ? [] : selectedWords
         });
-        
+        console.log(responseData);
         // Reset form
         setSpecificFeedback('');
         setSelectedWords([]);
@@ -85,19 +94,33 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
         
         // Reset understanding indication after a delay
         setTimeout(() => setUnderstanding(null), 3000);
+      } else {
+        setError(responseData.message || "Failed to submit feedback");
       }
     } catch (error) {
       console.error("Error sending feedback:", error);
+      setError("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-4 border-t border-gray-700">
-      {/* Basic feedback buttons - using the style from the duplicated buttons */}
+      {error && (
+        <div className="mb-2 p-2 bg-red-100 text-red-700 rounded text-sm">
+          {error}
+        </div>
+      )}
+      
+      {/* Basic feedback buttons */}
       <div className="flex justify-center space-x-4">
         <button
           onClick={() => sendFeedback(true)}
+          disabled={isSubmitting}
           className={`px-4 py-2 rounded-lg flex items-center ${
+            isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+          } ${
             understanding === true 
               ? 'bg-green-600 text-white' 
               : `bg-green-500 hover:bg-green-600 text-white`
@@ -111,7 +134,10 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
             setShowDetailedFeedback(true);
             setUnderstanding(false);
           }}
+          disabled={isSubmitting}
           className={`px-4 py-2 rounded-lg flex items-center ${
+            isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+          } ${
             understanding === false 
               ? 'bg-yellow-600 text-white' 
               : `bg-yellow-500 hover:bg-yellow-600 text-white`
@@ -165,7 +191,10 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
                 setShowDetailedFeedback(false);
                 setUnderstanding(null);
               }}
+              disabled={isSubmitting}
               className={`px-2 py-1 text-xs rounded ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 darkMode ? 'bg-gray-700' : 'bg-gray-300'
               }`}
             >
@@ -173,11 +202,14 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
             </button>
             <button
               onClick={() => sendFeedback(false)}
+              disabled={isSubmitting}
               className={`px-2 py-1 text-xs rounded ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 darkMode ? 'bg-red-600' : 'bg-red-500'
               } text-white`}
             >
-              Submit Feedback
+              {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
             </button>
           </div>
         </div>
