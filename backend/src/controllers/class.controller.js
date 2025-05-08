@@ -39,10 +39,18 @@ export const getActiveSession = async (req, res) => {
 export const joinClassByCode = async (req, res) => {
   try {
     const { code } = req.body;
-    const session = await ClassSession.findOne({ code: code, isActive: true });
+    const userId = req.user.uid; // Assuming user is authenticated and middleware sets req.user
+
+    const session = await ClassSession.findOne({ code, isActive: true });
 
     if (!session) {
       return res.status(404).json({ message: 'Invalid or expired class code' });
+    }
+
+    // Add user to session if not already present
+    if (!session.students.includes(userId)) {
+      session.students.push(userId);
+      await session.save();
     }
 
     res.status(200).json({ session });
@@ -51,6 +59,7 @@ export const joinClassByCode = async (req, res) => {
     res.status(500).json({ message: 'Error joining session' });
   }
 };
+
 
 
 export const appendTranscriptEntry = async (req, res) => {
@@ -332,17 +341,21 @@ export const clearHandRaises = async (req, res) => {
   }
 };
 // End class session (Teacher only)
+
+// BACKEND CODE - controllers/sessionController.js
 export const endClassSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user.uid;
 
-    // Only teachers can end sessions
+   
     if (req.user.role !== 'teacher') {
       return res.status(403).json({ message: 'Not authorized to end sessions' });
     }
+   
 
     const session = await ClassSession.findById(sessionId);
+    
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
@@ -356,17 +369,24 @@ export const endClassSession = async (req, res) => {
       return res.status(400).json({ message: 'Session is already ended' });
     }
 
-    // End the session by setting isActive to false
+    // End the session
     session.isActive = false;
     session.endedAt = new Date();
     await session.save();
 
+    // Emit socket event to notify all connected clients
+    req.io.to(`session-${sessionId}`).emit('session_update', { 
+      type: 'ended',
+      sessionId: session._id,
+      endedAt: session.endedAt
+    });
+
     res.status(200).json({ 
-      message: 'Session ended successfully',
+      message: 'Session ended successfully', 
       session: {
-        _id: session._id,
+        id: session._id,
         title: session.title,
-        endedAt: session.endedAt
+        endedAt: session.endedAt 
       }
     });
   } catch (error) {
