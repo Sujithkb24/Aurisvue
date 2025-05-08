@@ -10,7 +10,7 @@ import quizRoutes from './routes/quiz.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import classRoutes from './routes/class.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
-
+import Analytics from './routes/analytics.routes.js';
 import cors from 'cors';
 import registerSocketHandlers from './socket.js';
 
@@ -27,6 +27,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/analytics', Analytics);
 
 // Socket.io setup
 const server = http.createServer(app);
