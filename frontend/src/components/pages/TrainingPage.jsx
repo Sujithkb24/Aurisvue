@@ -313,9 +313,9 @@ const Training = () => {
           </div>
         </header>
 
-        <div className="flex flex-col flex-1 gap-6 p-6 md:flex-row">
+        <div className="flex flex-col justify-center flex-1 gap-6 p-6 md:flex-row">
           {/* Canvas Viewer - Center panel */}
-          <div className="w-full md:w-3/5 order-2 md:order-1 h-[500px]">
+          <div className="w-full md:w-3/5 order-2 md:order-1 h-[500px] mt-20">
             <div className={`relative w-full h-full rounded-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'
               } shadow-lg`}>
               <div id="canvas" className="w-full h-full" />

@@ -18,6 +18,8 @@ import FloatingActionButton from './ActionButton';
 import TeacherSelectionModal from './TeacherSelection';
 import QuickAccessWidget from './plugin/access_widget';
 import HeroSection from './ui/HeroSection';
+import { Book, Play } from 'lucide-react';
+import Training from './pages/TrainingPage';
 
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
@@ -63,10 +65,10 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       color: 'green'
     },
     {
-      id: 'analytics',
-      title: 'Analytics',
-      description: 'View usage statistics and performance metrics',
-      icon: <BarChart2 size={24} />,
+      id: 'Training',
+      title: 'Training',
+      description: 'Train with interactive 3D model',
+      icon: <Play size={24} />,
       color: 'orange'
     }
   ];
@@ -87,7 +89,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       <Header title="AurisVue" darkMode={darkMode} />
       
       {/* Dark mode toggle */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed z-50 top-4 right-4">
         <button 
           onClick={toggleDarkMode} 
           className={`p-3 rounded-full shadow-lg transition-all ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'}`}
@@ -100,15 +102,15 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       {/* Hero section with improved branding */}
       {/* <div className={`relative overflow-hidden py-20 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute transform -rotate-12 -left-10 -top-20 w-64 h-64 rounded-full bg-blue-500"></div>
-          <div className="absolute transform rotate-12 right-20 bottom-10 w-48 h-48 rounded-full bg-purple-500"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-green-500 opacity-20"></div>
+          <div className="absolute w-64 h-64 transform bg-blue-500 rounded-full -rotate-12 -left-10 -top-20"></div>
+          <div className="absolute w-48 h-48 transform bg-purple-500 rounded-full rotate-12 right-20 bottom-10"></div>
+          <div className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-green-500 rounded-full top-1/2 left-1/2 w-96 h-96 opacity-20"></div>
         </div>
         
-        <div className="container mx-auto px-6 text-center relative z-10">
+        <div className="container relative z-10 px-6 mx-auto text-center">
           <div className="max-w-4xl mx-auto">
             <div className={`inline-flex items-center justify-center p-2 mb-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-              <span className="text-sm font-medium px-3 py-1 flex items-center">
+              <span className="flex items-center px-3 py-1 text-sm font-medium">
                 <Star size={16} className={`mr-2 ${darkMode ? 'text-yellow-300' : 'text-blue-500'}`} /> 
                 Audio to Indian Sign Language
               </span>
@@ -143,12 +145,12 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       <HeroSection darkMode={darkMode} modelPath="/models/Orc.fbx"/>
       
       {/* Main content with cards - improved layout and animations */}
-      <div className="container mx-auto px-6 py-20">
+      <div className="container px-6 py-20 mx-auto">
         <h2 className={`text-3xl font-bold mb-14 text-center ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
           Choose a Mode
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+        <div className="grid max-w-6xl grid-cols-1 gap-8 mx-auto md:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => (
             <button 
               key={card.id}
@@ -157,11 +159,13 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
               onMouseLeave={() => setHoveredCard(null)}
               className={`group relative p-6 rounded-2xl flex flex-col transition-all duration-300 transform ${hoveredCard === card.id ? 'scale-105 shadow-xl' : 'scale-100 shadow-md'} ${darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'}`}
             >
-              <div className={`mb-6 p-4 rounded-xl ${getColorClass(card.color)} text-white transition-all duration-300 group-hover:scale-110`}>
+              <div className={`mb-6 p-4 rounded-xl ${getColorClass(card.color)} text-white transition-all duration-300 group-hover:scale-110 items-center justify-center`}>
+                <div className='items-center justify-center px-14'>
                 {card.icon}
+                </div>           
               </div>
               
-              <h3 className="text-xl font-bold mb-3">{card.title}</h3>
+              <h3 className="mb-3 text-xl font-bold">{card.title}</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} mb-6`}>{card.description}</p>
               
               <div className={`absolute bottom-6 right-6 transition-all duration-300 opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 ${getColorClass(card.color)} text-white p-2 rounded-full`}>
@@ -174,34 +178,34 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       
       {/* Features section - improved styling */}
       <div className={`py-20 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-        <div className="container mx-auto px-6">
+        <div className="container px-6 mx-auto">
           <h2 className={`text-3xl font-bold mb-14 text-center ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
             Key Features
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid max-w-5xl grid-cols-1 gap-8 mx-auto md:grid-cols-3">
             <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <div className="mb-4 p-3 rounded-lg bg-blue-100 text-blue-600 inline-block">
+              <div className="inline-block p-3 mb-4 text-blue-600 bg-blue-100 rounded-lg">
                 <Mic size={24} />
               </div>
-              <h3 className="text-xl font-bold mb-3">Speech Recognition</h3>
+              <h3 className="mb-3 text-xl font-bold">Speech Recognition</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Advanced real-time audio processing for accurate speech-to-text conversion
               </p>
             </div>
             
             <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <div className="mb-4 p-3 rounded-lg bg-purple-100 text-purple-600 inline-block">
+              <div className="inline-block p-3 mb-4 text-purple-600 bg-purple-100 rounded-lg">
                 <Layout size={24} />
               </div>
-              <h3 className="text-xl font-bold mb-3">3D Visualization</h3>
+              <h3 className="mb-3 text-xl font-bold">3D Visualization</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 High-quality 3D rendering of ISL gestures with natural movements
               </p>
             </div>
             
             <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <h3 className="text-xl font-bold mb-3">Customization</h3>
+              <h3 className="mb-3 text-xl font-bold">Customization</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Personalized settings for speed, gestures, and learning preferences
               </p>
@@ -211,7 +215,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       </div>
       
       {/* Call to action - improved styling */}
-      <div className="container mx-auto px-6 py-20">
+      <div className="container px-6 py-20 mx-auto">
         <div className={`max-w-4xl mx-auto text-center p-12 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg transform transition-transform hover:scale-105`}>
           <h2 className={`text-3xl font-bold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
             Ready to get started?
