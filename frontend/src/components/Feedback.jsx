@@ -3,7 +3,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle, HelpCircle } from 'lucide-react';
 
-const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech, setUnderstanding, understanding }) => {
+const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech, setUnderstanding, understanding, studentFeedback, setStudentFeedback }) => {
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(false);
   const [specificFeedback, setSpecificFeedback] = useState('');
   const [problematicWords, setProblematicWords] = useState([]);
@@ -37,74 +37,75 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
 
   // Send enhanced feedback to backend
   const sendFeedback = async (understood) => {
-    if (!classSession || !classSession._id) {
-      setError("Class session information is missing");
-      return;
-    }
-    
-    // Update the parent component's state
-    setUnderstanding(understood);
-    
-    // Get the ISL conversion result from the ISL viewer component if available
-    // This is a placeholder - you'll need to modify this to get the actual conversion result
-    const islConversionResult = window.ISLConversionResult || "ISL_CONVERSION_RESULT";
-    
-    // Prepare feedback data
-    const feedbackData = {
-      sessionId: classSession._id,
-      understood,
-      timestamp: new Date().toISOString(),
-      transcript: detectedSpeech || "",
-      conversionResult: islConversionResult,
-      specificFeedback: specificFeedback || null,
-      problematicWords: understood ? [] : selectedWords
-    };
-    
-    try {
-      setIsSubmitting(true);
-      setError(null);
-      
-      const token = await getToken();
-      const response = await fetch('http://localhost:5000/api/analytics/feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(feedbackData)
-      });
-      
-      const responseData = await response.json();
-      
-      if (response.ok) {
-        // Emit feedback to teacher via socket
-        socket.emit('student_feedback', {
-          studentId: currentUser.uid,
-          studentName: currentUser.name,
-          understood,
-          sessionId: classSession.code,
-          specificFeedback: specificFeedback || null,
-          problematicWords: understood ? [] : selectedWords
-        });
-        console.log(responseData);
-        // Reset form
-        setSpecificFeedback('');
-        setSelectedWords([]);
-        setShowDetailedFeedback(false);
-        
-        // Reset understanding indication after a delay
-        setTimeout(() => setUnderstanding(null), 3000);
-      } else {
-        setError(responseData.message || "Failed to submit feedback");
-      }
-    } catch (error) {
-      console.error("Error sending feedback:", error);
-      setError("Network error. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  if (!classSession || !classSession._id) {
+    setError("Class session information is missing");
+    return;
+  }
+
+  setUnderstanding(understood);
+
+  const feedbackData = {
+    sessionId: classSession._id,
+    understood,
+    timestamp: new Date().toISOString(),
+    transcript: detectedSpeech || "",
+    conversionResult: "ISL_CONVERSION_RESULT", // Placeholder
+    specificFeedback: specificFeedback || null,
+    problematicWords: understood ? [] : selectedWords,
   };
 
+  try {
+    setIsSubmitting(true);
+    setError(null);
+
+    const token = await getToken();
+    const response = await fetch('http://localhost:5000/api/analytics/feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(feedbackData),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      // Emit feedback to teacher via socket
+      socket.emit('student_feedback', {
+
+        studentId: currentUser.uid,
+        studentName: currentUser.name,
+        understood,
+        sessionId: classSession.code,
+        specificFeedback: specificFeedback || null,
+        problematicWords: understood ? [] : selectedWords,
+      });
+
+      console.log(responseData);
+
+      // Add a delay before updating studentFeedback
+      setTimeout(() => {
+        setStudentFeedback(responseData); // Update studentFeedback after delay
+      }, 500); // 500ms delay to allow backend processing
+
+      // Reset form
+      setSpecificFeedback('');
+      setSelectedWords([]);
+      setShowDetailedFeedback(false);
+
+      // Reset understanding indication after a delay
+      setTimeout(() => setUnderstanding(null), 3000);
+    } else {
+      setError(responseData.message || "Failed to submit feedback");
+    }
+  } catch (error) {
+    console.error("Error sending feedback:", error);
+    setError("Network error. Please try again.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   return (
     <div className="p-4 border-t border-gray-700">
       {error && (
@@ -114,40 +115,42 @@ const FeedbackComponent = ({ darkMode, currentUser, classSession, detectedSpeech
       )}
       
       {/* Basic feedback buttons */}
-      <div className="flex justify-center space-x-4">
-        <button
-          onClick={() => sendFeedback(true)}
-          disabled={isSubmitting}
-          className={`px-4 py-2 rounded-lg flex items-center ${
-            isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-          } ${
-            understanding === true 
-              ? 'bg-green-600 text-white' 
-              : `bg-green-500 hover:bg-green-600 text-white`
-          }`}
-        >
-          <CheckCircle size={16} className="mr-2" />
-          <span>I Understand</span>
-        </button>
-        <button
-          onClick={() => {
-            setShowDetailedFeedback(true);
-            setUnderstanding(false);
-          }}
-          disabled={isSubmitting}
-          className={`px-4 py-2 rounded-lg flex items-center ${
-            isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-          } ${
-            understanding === false 
-              ? 'bg-yellow-600 text-white' 
-              : `bg-yellow-500 hover:bg-yellow-600 text-white`
-          }`}
-        >
-          <HelpCircle size={16} className="mr-2" />
-          <span>Need Clarification</span>
-        </button>
-      </div>
-      
+   <div className="flex justify-center space-x-4">
+  <button
+    onClick={() => {
+      sendFeedback(true);
+      navigate('/teacher-analytics'); // Navigate to teacher analytics
+    }}
+    disabled={isSubmitting}
+    className={`px-4 py-2 rounded-lg flex items-center ${
+      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+    } ${
+      understanding === true 
+        ? 'bg-green-600 text-white' 
+        : `bg-green-500 hover:bg-green-600 text-white`
+    }`}
+  >
+    <CheckCircle size={16} className="mr-2" />
+    <span>I Understand</span>
+  </button>
+  <button
+    onClick={() => {
+      setShowDetailedFeedback(true);
+      setUnderstanding(false);
+    }}
+    disabled={isSubmitting}
+    className={`px-4 py-2 rounded-lg flex items-center ${
+      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+    } ${
+      understanding === false 
+        ? 'bg-yellow-600 text-white' 
+        : `bg-yellow-500 hover:bg-yellow-600 text-white`
+    }`}
+  >
+    <HelpCircle size={16} className="mr-2" />
+    <span>Need Clarification</span>
+  </button>
+</div>
       {/* Detailed feedback form */}
       {showDetailedFeedback && (
         <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
