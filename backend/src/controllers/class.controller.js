@@ -31,21 +31,11 @@ export const getActiveSession = async (req, res) => {
   try {
     const userId = req.user.uid;
     const activeSession = await ClassSession.findOne({ createdBy: userId, isActive: true });
-    console.log(activeSession);
-    
-    // Fetch all sessions owned by this user
-    const allSessions = await ClassSession.find({ createdBy: userId })
-      .sort({ createdAt: -1 }) // Sort by creation date (newest first)
-      .lean(); // Convert to plain JavaScript objects
-    
-    // Return both the active session and all sessions
-    res.status(200).json({ 
-      activeSession, 
-      sessions: allSessions 
-    });
+    console.log(activeSession)
+    res.status(200).json({ activeSession });
   } catch (err) {
-    console.error('Error fetching sessions:', err);
-    res.status(500).json({ message: 'Error retrieving sessions' });
+    console.error('Error fetching active session:', err);
+    res.status(500).json({ message: 'Error retrieving session' });
   }
 };
 

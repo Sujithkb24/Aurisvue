@@ -9,6 +9,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import FeedbackComponent from '../Feedback';
 import ActiveSessionModal from '../ActiveSessionModal';
+import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 let _jitsiScriptLoading = null;
@@ -42,6 +43,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   
   // State for class session
   const [classSession, setClassSession] = useState(null);
+  const [classJoined, setClassJoined] = useState(null);
   const [classCode, setClassCode] = useState('');
   const [isTeacher, setIsTeacher] = useState(true);
   const [isMicActive, setIsMicActive] = useState(false);
@@ -57,7 +59,8 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const [isLoading, setIsLoading] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [error, setError] = useState('');
-  
+  const [studentFeedback, setStudentFeedback] = useState(null); // New state for student feedback
+
   // State for student feedback
   const [understanding, setUnderstanding] = useState(null);
   const [problemWords, setProblemWords] = useState([]);
@@ -80,6 +83,45 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const primaryTextColor = isTeacher ? 
     (darkMode ? 'text-purple-400' : 'text-purple-600') : 
     (darkMode ? 'text-blue-400' : 'text-blue-600');
+
+    useEffect(() => {
+  if (!classJoined) return;
+
+ const fetchFeedback = async () => {
+  try {
+    const token = await getToken();
+    const response = await fetch(`${API_URL}/analytics/feedback/${classJoined._id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // Flatten problematicWords from all feedback entries
+      const feedbackWords = data.data.flatMap((feedback) => 
+        (feedback.problematicWords || []).map((word) => ({
+          word,
+          studentId: feedback.studentId,
+          studentName: feedback.studentName || 'Unknown', // Fallback if studentName is missing
+          timestamp: new Date(feedback.timestamp),
+        }))
+      );
+
+      console.log('Mapped feedback words:', feedbackWords);
+      setProblemWords(feedbackWords);
+    } else {
+      console.error('Failed to fetch feedback:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+  }
+};
+
+  // Polling mechanism
+  const intervalId = setInterval(fetchFeedback, 2000); // Poll every 2 seconds
+
+  return () => clearInterval(intervalId); // Cleanup interval on unmount
+}, [classJoined, transcriptHistory, studentFeedback]);
 
     // Add this to an existing useEffect or create a new one
 useEffect(() => {
@@ -178,25 +220,7 @@ useEffect(() => {
         }
       }
     });
-    socket.on('student_feedback', (data) => {
-      const { studentId, studentName, understood, sessionId, specificFeedback, problematicWords } = data;
-      console.log('Student feedback received:', data);
-      // If there are problematic words, update the state
-      if (problematicWords && problematicWords.length > 0) {
-        setProblemWords(prev => {
-          // Add new problematic words with student info
-          const newProblematicWords = problematicWords.map(word => ({
-            word,
-            studentId,
-            studentName,
-            timestamp: new Date()
-          }));
-          
-          // Return combined array with newest items first
-          return [...newProblematicWords, ...prev];
-        });
-      }
-    }); 
+
     // Listen for session updates
     socket.on('session_update', (update) => {
       console.log('Session update received:', update);
@@ -555,36 +579,32 @@ jitsiApiRef.current.addEventListeners({
   
   // Check for active session (teacher only)
   const checkForActiveSession = async () => { 
-  setIsLoading(true);
-  try {
-    const token = await getToken();
-    const response = await fetch(`${API_URL}/classes/active`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    if (userRole !== 'teacher') return;
     
-    if (response.ok) {
-      const data = await response.json();
+    setIsLoading(true);
+    try {
+      const token = await getToken();
+      const response = await fetch(`${API_URL}/classes/active`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      // Store all sessions
-      setSessions(data.sessions || []);
-      
-      // Handle active session for teachers
-      if (userRole === 'teacher' && data.activeSession) {
-        setClassSession(data.activeSession);
-        setClassCode(data.activeSession.code);
-        setJitsiMeetLink(data.activeSession.jitsiLink);
-        
-        // Join the session room
-        joinRoom(data.activeSession.code);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.activeSession) {
+          setClassSession(data.activeSession);
+          setClassCode(data.activeSession.code);
+          setJitsiMeetLink(data.activeSession.jitsiLink);
+          
+          // Join the session room
+          joinRoom(data.activeSession.code);
+        }
       }
+    } catch (error) {
+      setError("Error checking for active session");
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    setError("Error checking for sessions");
-    console.error("Error checking for sessions:", error);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
   
   // Create new class session (teacher only)
   const createClassSession = async () => {
@@ -610,7 +630,7 @@ jitsiApiRef.current.addEventListeners({
         setClassSession(data.session);
         setClassCode(data.session.code);
         setJitsiMeetLink(data.session.jitsiMeetLink);
-  
+        setClassJoined(data.session);
         // Join the session room
         joinRoom(data.session.code);
   
@@ -645,6 +665,8 @@ jitsiApiRef.current.addEventListeners({
         const data = await response.json();
         setClassSession(data.session);
         setJitsiMeetLink(data.session.jitsiLink);
+        
+        console.log('Class joined:', classJoined);
         setShowJoinModal(false);
   
         // Join the session room
@@ -664,6 +686,8 @@ jitsiApiRef.current.addEventListeners({
   const handleContinueSession = (session) => {
     // Join the room with the session code
     joinRoom(session.code);
+    setClassJoined(session);
+    console.log('Continuing session:', session);
     setJitsiMeetLink(session.jitsiLink);
   };
   
@@ -915,9 +939,9 @@ jitsiApiRef.current.addEventListeners({
       {renderJoinModal()}
       
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-y-auto">
         {/* Main teaching/learning area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-y-auto">
           {/* Video Conference Area with ISL view side-by-side */}
           <div className={`flex-1 relative flex ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Teacher Layout - 75% Jitsi, 25% Transcript and Problem Words */}
@@ -971,20 +995,20 @@ jitsiApiRef.current.addEventListeners({
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {transcriptHistory.length > 0 ? (
-                        transcriptHistory.map((item, index) => (
-                          <div key={index} className="text-sm">
-                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}:
-                            </span>
-                            <p>{item.text}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {isMicActive ? 'Speak to see transcript here...' : 'Mic is muted'}
-                        </p>
-                      )}
+                    {transcriptHistory.length > 0 ? (
+  transcriptHistory.slice(-10).map((item, index) => (
+    <div key={index} className="text-sm">
+      <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}:
+      </span>
+      <p>{item.text}</p>
+    </div>
+  ))
+) : (
+  <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+    {isMicActive ? 'Speak to see transcript here...' : 'Mic is muted'}
+  </p>
+)}
                     </div>
                   </div>
                 </div>
@@ -1059,13 +1083,15 @@ jitsiApiRef.current.addEventListeners({
                 {/* Feedback component for students */}
                 {!isTeacher && classSession && (
                   <FeedbackComponent
-                    darkMode={darkMode}
-                    currentUser={currentUser}
-                    classSession={classSession}
-                    detectedSpeech={detectedSpeech}
-                    setUnderstanding={setUnderstanding}
-                    understanding={understanding}
-                  />
+    darkMode={darkMode}
+    currentUser={currentUser}
+    classSession={classSession}
+    detectedSpeech={detectedSpeech}
+    setUnderstanding={setUnderstanding}
+    understanding={understanding}
+    studentFeedback={studentFeedback} // Pass as prop
+    setStudentFeedback={setStudentFeedback} // Pass setter as prop
+  />
                 )}
               </div>
             </div>
