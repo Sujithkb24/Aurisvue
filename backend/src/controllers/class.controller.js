@@ -226,6 +226,7 @@ export const raiseHand = async (req, res) => {
   }
 };
 
+
 // Get all hand raises (Teacher role)
 export const getHandRaises = async (req, res) => {
   try {

@@ -14,7 +14,8 @@
     "nanoid": "^5.1.5",
     "nodemon": "^3.1.10",
     "pdf-parse": "^1.1.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "youtube-transcript": "^1.2.1"
   },
   "name": "y",
   "version": "1.0.0",

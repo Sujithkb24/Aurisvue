@@ -11,11 +11,13 @@ import Quiz from './components/pages/QuizPage'; // Import Quiz component
 import Leaderboard from './components/pages/LeaderBoard'; // Import Leaderboard component
 import Training from './components/pages/TrainingPage'; // Import Training component
 import Dashboard from './components/pages/Dashboard'; // Import Dashboard component
+// import TeacherAnalyticsDashboard from './components/TeacherAnalytics';
 import React from 'react';
 import ISLChatbot from './components/pages/Chatbot';
 import { AuthProvider } from './contexts/AuthContext';
 import {SocketProvider} from './contexts/SocketContext'
 import VideoTranscriptionPlugin from './components/modes/plugin';
+import YouTube from './components/modes/YouTubeISLPage';
 
 const AppRouter = () => {
   return (
@@ -36,7 +38,9 @@ const AppRouter = () => {
           <Route path="/leaderboard" element={<Leaderboard />} /> {/* Leaderboard route */}
           <Route path="/training" element={<Training />} /> {/* Training route */}
           <Route path="/dashboard" element={<Dashboard />} /> {/* Dashboard route */}
+          <Route path="/yt" element={<YouTube/>} /> {/* Dashboard route */}
           <Route path="*" element={<Navigate to="/" replace />} /> {/* Fallback route */}
+          {/* <Route path="/" */}
           
         </Routes>
         </SocketProvider>

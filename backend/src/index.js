@@ -15,6 +15,8 @@ import audioRoutes from './routes/audioTranscription.routes.js'; // Assuming aud
 import cors from 'cors';
 import registerSocketHandlers from './socket.js';
 
+
+
 dotenv.config();
 
 const app = express();
