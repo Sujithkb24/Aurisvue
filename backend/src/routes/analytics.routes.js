@@ -1,7 +1,10 @@
 import express from 'express';
+import { getTeacherAnalytics } from '../controllers/analytics.controller.js';
+import { checkRole } from '../middleware/role.middleware.js';
 import { getSessionFeedback, saveStudentFeedback } from '../controllers/analytics.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 const router = express.Router();
 router.post('/feedback', verifyToken, saveStudentFeedback);
 router.get('/feedback/:sessionId', verifyToken, getSessionFeedback);
+router.get('/teacher', verifyToken, checkRole(['teacher', 'admin']), getTeacherAnalytics);
 export default router;
