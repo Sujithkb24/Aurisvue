@@ -4,6 +4,7 @@ import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import connectDB from './config/db.js';
 
+import analyticsRoutes from './routes/analytics.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import schoolRoutes from './routes/school.routes.js';
 import quizRoutes from './routes/quiz.routes.js';
@@ -24,6 +25,7 @@ connectDB();
 app.use(cors('*'));
 app.use(express.json());
 
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/schools', schoolRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/quizzes', quizRoutes);

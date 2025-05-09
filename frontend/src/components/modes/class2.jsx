@@ -555,32 +555,36 @@ jitsiApiRef.current.addEventListeners({
   
   // Check for active session (teacher only)
   const checkForActiveSession = async () => { 
-    if (userRole !== 'teacher') return;
+  setIsLoading(true);
+  try {
+    const token = await getToken();
+    const response = await fetch(`${API_URL}/classes/active`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    setIsLoading(true);
-    try {
-      const token = await getToken();
-      const response = await fetch(`${API_URL}/classes/active`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+    if (response.ok) {
+      const data = await response.json();
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.activeSession) {
-          setClassSession(data.activeSession);
-          setClassCode(data.activeSession.code);
-          setJitsiMeetLink(data.activeSession.jitsiLink);
-          
-          // Join the session room
-          joinRoom(data.activeSession.code);
-        }
+      // Store all sessions
+      setSessions(data.sessions || []);
+      
+      // Handle active session for teachers
+      if (userRole === 'teacher' && data.activeSession) {
+        setClassSession(data.activeSession);
+        setClassCode(data.activeSession.code);
+        setJitsiMeetLink(data.activeSession.jitsiLink);
+        
+        // Join the session room
+        joinRoom(data.activeSession.code);
       }
-    } catch (error) {
-      setError("Error checking for active session");
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    setError("Error checking for sessions");
+    console.error("Error checking for sessions:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
   
   // Create new class session (teacher only)
   const createClassSession = async () => {
