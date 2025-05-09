@@ -3,6 +3,7 @@ import { Send, MessageSquare, ChevronUp, ChevronDown, X } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import Header from '../header';
 import { SocketProvider, useSocket } from '../../contexts/SocketContext';
+import InfoButton from '../ui/plugininfo';
 
 const YouTube = ({ darkMode = true, onBack }) => {
   const [inputText, setInputText] = useState('');
@@ -52,7 +53,7 @@ const YouTube = ({ darkMode = true, onBack }) => {
   const shouldShowMainControls = !isMobile || (isMobile && !showFloatingControls);
 
   return (
-    <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+    <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gradient-to-br from-black to-blue-950 text-white' : 'bg-gray-100 text-gray-900'}`}>
       <Header title="ISL Translator" showBackButton={true} onBack={onBack} darkMode={darkMode} />
 
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
@@ -90,7 +91,7 @@ const YouTube = ({ darkMode = true, onBack }) => {
 </div>
 
         {/* Control Panel */}
-        <div className={`w-full md:w-1/3 h-1/2 md:h-full flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'} ${shouldShowMainControls ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`w-full md:w-1/3 h-1/2 md:h-full flex flex-col ${darkMode ? 'bg-gradient-to-br from-purple-950 to-blue-950' : 'bg-white'} ${shouldShowMainControls ? 'flex' : 'hidden md:flex'}`}>
           <div className="flex flex-col h-full p-4">
             {/* YouTube URL Input */}
             <div className="mb-6">
@@ -141,7 +142,7 @@ const YouTube = ({ darkMode = true, onBack }) => {
                 Translate to ISL
               </button>
             </div>
-
+            <InfoButton />
             {/* History */}
             <div className="mt-4">
               <div className="flex justify-between items-center mb-2">
@@ -219,6 +220,7 @@ const YouTube = ({ darkMode = true, onBack }) => {
                   </button>
                 </div>
               </form>
+              
             </div>
           )}
         </>

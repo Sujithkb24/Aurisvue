@@ -1,7 +1,7 @@
 import React from "react";
 const Loader = () => {
     return (
-        <div className="flex h-screen w-auto bg-gray-950 items-center justify-center">
+        <div className="flex h-screen w-auto bg-transparent items-center justify-center">
         <div className="w-32 h-32 relative flex items-center  justify-center">
         <div className="absolute inset-0 rounded-xl bg-blue-500/20 blur-xl animate-pulse"></div>
   

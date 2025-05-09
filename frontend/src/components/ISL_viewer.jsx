@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import Loader from './ui/Loader';
 
 const ISLViewer = ({ speechInput, darkMode, shouldTranslate, onTranslationDone }) => {
   const [videoSequence, setVideoSequence] = useState([]);
@@ -80,16 +81,16 @@ const ISLViewer = ({ speechInput, darkMode, shouldTranslate, onTranslationDone }
     <div className={`flex items-center justify-center w-full h-full p-4`}>
       <div 
         className={`relative w-full max-w-2xl mx-auto overflow-hidden transition-all duration-300 transform ${
-          darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-        } rounded-2xl shadow-2xl border ${
+          darkMode ? 'bg-transparent text-white' : 'bg-white text-gray-900'
+        }  ${
           darkMode ? 'border-gray-700' : 'border-gray-200'
         }`}
       >
         {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 space-y-4">
-            <div className="w-16 h-16 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-            <p className="text-lg font-medium">Translating to ISL...</p>
-          </div>
+         
+            <Loader/>
+            
+          
         ) : videoSequence.length > 0 ? (
           <>
             {/* Video Display */}

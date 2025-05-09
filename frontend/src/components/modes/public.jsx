@@ -113,7 +113,7 @@ const PublicMode = ({ darkMode = true, onBack }) => {
     
       <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
         {/* Main content area with ISL Viewer */}
-        <div className="relative flex items-center justify-center w-full md:w-2/3 h-1/2 md:h-full bg-gradient-to-br from-gray-950 to-gray-800">
+        <div className="relative flex pb-40 items-center border-3 border-black  w-full md:w-2/3 h-1/2 md:h-full bg-gradient-to-br from-purple-900 to-blue-950">
           <div className="absolute inset-0 opacity-20 bg-pattern"></div>
           
           <SocketProvider>
@@ -144,7 +144,7 @@ const PublicMode = ({ darkMode = true, onBack }) => {
                   onClick={handleTranslateClick}
                   className={`px-4 py-2 rounded-md font-medium transition-all duration-200 transform hover:scale-105 ${
                     darkMode 
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                      ? 'bg-purple-500 hover:bg-purple-600 text-white' 
                       : 'bg-blue-500 hover:bg-blue-600 text-white'
                   } shadow-md`}
                 >
@@ -157,7 +157,7 @@ const PublicMode = ({ darkMode = true, onBack }) => {
 
         {/* Controls Panel - only visible on larger screens or when expanded on mobile */}
         <div className={`w-full md:w-1/3 h-1/2 md:h-full flex flex-col ${
-          darkMode ? 'bg-gray-800 border-l border-gray-700' : 'bg-white border-l border-gray-200'
+          darkMode ? 'bg-blue-950 border-3 border-black' : 'bg-white border-l border-gray-200'
         } ${shouldShowMainControls ? 'flex' : 'hidden md:flex'} transition-all duration-300`}>
           <div className="flex flex-col h-full p-6">
             {/* Controls section */}
