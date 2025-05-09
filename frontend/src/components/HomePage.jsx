@@ -58,7 +58,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       color: 'purple'
     },
     {
-      id: 'plugin',
+      id: 'yt',
       title: 'Plugin Mode',
       description: 'Browser extension for ISL translation of online video content',
       icon: <Chrome size={24} />,
@@ -146,11 +146,11 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       
       {/* Main content with cards - improved layout and animations */}
       <div className="container px-6 py-20 mx-auto">
-        <h2 className={`text-3xl font-bold mb-14 text-center ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+        <h2 className={`text-7xl font-bold mb-14 text-center ${darkMode ? 'text-blue-500' : 'text-gray-800'}`}>
           Choose a Mode
         </h2>
         
-        <div className="grid max-w-6xl grid-cols-1 gap-8 mx-auto md:grid-cols-2 lg:grid-cols-4">
+        <div id='cards' className="grid max-w-6xl grid-cols-1 gap-8 mx-auto md:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => (
             <button 
               key={card.id}
@@ -177,60 +177,83 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
       </div>
       
       {/* Features section - improved styling */}
-      <div className={`py-20 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-        <div className="container px-6 mx-auto">
-          <h2 className={`text-3xl font-bold mb-14 text-center ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-            Key Features
-          </h2>
-          
-          <div className="grid max-w-5xl grid-cols-1 gap-8 mx-auto md:grid-cols-3">
-            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <div className="inline-block p-3 mb-4 text-blue-600 bg-blue-100 rounded-lg">
-                <Mic size={24} />
-              </div>
-              <h3 className="mb-3 text-xl font-bold">Speech Recognition</h3>
-              <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Advanced real-time audio processing for accurate speech-to-text conversion
-              </p>
-            </div>
-            
-            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <div className="inline-block p-3 mb-4 text-purple-600 bg-purple-100 rounded-lg">
-                <Layout size={24} />
-              </div>
-              <h3 className="mb-3 text-xl font-bold">3D Visualization</h3>
-              <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                High-quality 3D rendering of ISL gestures with natural movements
-              </p>
-            </div>
-            
-            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-750' : 'bg-white'} shadow-md transform transition-transform hover:scale-105`}>
-              <h3 className="mb-3 text-xl font-bold">Customization</h3>
-              <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Personalized settings for speed, gestures, and learning preferences
-              </p>
-            </div>
-          </div>
+      <div className={`py-20 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+  <div className="container px-6 mx-auto">
+    <h2 className={`text-7xl font-bold mb-16 text-center ${darkMode ? 'text-cyan-500' : 'text-gray-900'}`}>
+      Key Features
+    </h2>
+
+    <div className="grid max-w-6xl grid-cols-1 gap-10 mx-auto md:grid-cols-3">
+      {/* Speech Recognition */}
+      <div
+        className={`p-6 rounded-2xl transition-transform transform hover:scale-105 shadow-lg 
+        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}
+      >
+        <div className="flex items-center justify-center w-12 h-12 mb-4 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-white">
+          <Mic size={24} />
         </div>
+        <h3 className="mb-2 text-xl font-semibold">Speech Recognition</h3>
+        <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          Advanced real-time audio processing for accurate speech-to-text conversion.
+        </p>
       </div>
+
+      {/* 3D Visualization */}
+      <div
+        className={`p-6 rounded-2xl transition-transform transform hover:scale-105 shadow-lg 
+        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}
+      >
+        <div className="flex items-center justify-center w-12 h-12 mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+          <Layout size={24} />
+        </div>
+        <h3 className="mb-2 text-xl font-semibold">3D Visualization</h3>
+        <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          High-quality 3D rendering of ISL gestures with natural movements.
+        </p>
+      </div>
+
+      {/* Customization */}
+      <div
+        className={`p-6 rounded-2xl transition-transform transform hover:scale-105 shadow-lg 
+        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}
+      >
+        <div className="flex items-center justify-center w-12 h-12 mb-4 rounded-full bg-gradient-to-br from-rose-500 to-orange-400 text-white text-xl font-bold">
+          🎛️
+        </div>
+        <h3 className="mb-2 text-xl font-semibold">Customization</h3>
+        <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          Personalized settings for speed, gestures, and learning preferences.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
       
       {/* Call to action - improved styling */}
-      <div className="container px-6 py-20 mx-auto">
-        <div className={`max-w-4xl mx-auto text-center p-12 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg transform transition-transform hover:scale-105`}>
-          <h2 className={`text-3xl font-bold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-            Ready to get started?
-          </h2>
-          <p className={`mb-8 text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Choose a mode that fits your needs and start breaking communication barriers today
-          </p>
-          <button 
-            onClick={() => handleNavigateToMode('public')} 
-            className={`px-8 py-4 rounded-lg font-medium transform transition-all hover:scale-105 ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'} text-white`}
-          >
-            Start Using AurisVue
-          </button>
-        </div>
-      </div>
+      <div className="container px-6 py-24 mx-auto">
+  <div
+    className={`max-w-4xl mx-auto text-center p-12 rounded-3xl shadow-xl transition-transform duration-300 hover:scale-105 
+    ${darkMode ? 'bg-gradient-to-r from-blue-900 to-blue-950' : 'bg-gradient-to-br from-white via-blue-50 to-blue-100'}`}
+  >
+    <h2 className={`text-4xl font-extrabold mb-4 tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+      Ready to get started?
+    </h2>
+
+    <p className={`mb-10 text-lg leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+      Choose a mode that fits your needs and start breaking communication barriers today.
+    </p>
+
+    <button
+      onClick={() => handleNavigateToMode('public')}
+      className={`px-8 py-4 rounded-xl text-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:scale-105 
+      ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'} text-white`}
+    >
+      Start Using AurisVue
+    </button>
+  </div>
+</div>
+
       
       {/* Floating Action Button for quick access */}
       <FloatingActionButton 

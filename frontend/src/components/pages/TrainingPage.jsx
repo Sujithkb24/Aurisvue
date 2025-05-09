@@ -411,7 +411,7 @@ const Training = () => {
           {/* Right sidebar for controls and gestures */}
           <div className="flex flex-col order-1 w-full gap-6 md:w-2/5 md:order-2">
             {/* Controls section */}
-            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gradient-to-r from-blue-900 to-blue-950' : 'bg-white'} shadow-lg`}>
               <h2 className="mb-4 text-xl font-bold">Animation Controls</h2>
               <div className="space-y-6">
                 <div>
@@ -490,7 +490,7 @@ const Training = () => {
             </div>
 
             {/* Gesture selection tabs */}
-            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gradient-to-r from-blue-900 to-blue-950' : 'bg-white'} shadow-lg`}>
               <div className="flex mb-4 border-b border-gray-700">
                 <button
                   onClick={() => setActiveCategory("alphabets")}

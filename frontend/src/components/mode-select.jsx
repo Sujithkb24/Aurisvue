@@ -16,7 +16,7 @@ const ModeSelector = ({ activeMode, setActiveMode, darkMode }) => {
       color: 'purple'
     },
     {
-      id: 'plugin',
+      id: 'yt',
       name: 'Plugin Mode',
       icon: <Chrome size={18} />,
       color: 'green'

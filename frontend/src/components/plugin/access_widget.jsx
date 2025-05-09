@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Mic, Play, Settings, X, Maximize2, Minimize2, Move, 
   Volume2, VolumeX, RefreshCw, AlertTriangle, MessageSquare,
