@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, {useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'; // 🔄 Use FBXLoader
 
@@ -10,6 +10,30 @@ const HeroSection = ({ darkMode = false, modelPath = null }) => {
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentRotation = useRef({ x: 0, y: 0 });
   const autoRotateRef = useRef(true);
+
+  const [animationEnabled, setAnimationEnabled] = useState(true);
+
+  // Generate random position for the bubbles
+  const generateBubbles = (count) => {
+    const bubbles = [];
+    for (let i = 0; i < count; i++) {
+      bubbles.push({
+        id: i,
+        size: Math.floor(Math.random() * 150) + 50, // 50-200px
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * 100}%`,
+        animationDuration: `${Math.random() * 15 + 10}s`, // 10-25s
+        animationDelay: `${Math.random() * 5}s`,
+      });
+    }
+    return bubbles;
+  };
+
+  const [bubbles, setBubbles] = useState([]);
+  
+  useEffect(() => {
+    setBubbles(generateBubbles(12));
+  }, []);
 
   // useEffect(() => {
   //   const scene = new THREE.Scene();
@@ -178,14 +202,39 @@ const HeroSection = ({ darkMode = false, modelPath = null }) => {
   // }, [darkMode, modelPath]);
 
   return (
-    <div className={`flex flex-col min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700">
+      {/* Animated bubbles */}
+      {animationEnabled && bubbles.map(bubble => (
+        <div
+          key={bubble.id}
+          className="absolute rounded-full opacity-30 bg-white blur-xl animate-float"
+          style={{
+            width: `${bubble.size}px`,
+            height: `${bubble.size}px`,
+            left: bubble.left,
+            top: bubble.top,
+            animationDuration: bubble.animationDuration,
+            animationDelay: bubble.animationDelay,
+          }}
+        />
+      ))}
+       {/* Controls */}
+       <div className="absolute top-4 right-4 z-10">
+        <button 
+          onClick={() => setAnimationEnabled(!animationEnabled)}
+          className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-1 rounded-full text-sm transition-all duration-300"
+        >
+          {animationEnabled ? '' : ''}
+        </button>
+      </div>
+    <div className={`flex flex-col min-h-screen ${darkMode ? ' text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl mx-auto px-4 py-16 md:py-24 h-screen">
         <div className="w-full md:w-1/2 mb-12 md:mb-0">
           <h1 className={`text-4xl md:text-6xl lg:text-6xl font-bold leading-tight mb-6 ${darkMode ? 'text-purple-300' : 'text-blue-600'}`}>
             Create Amazing <br />
             Digital Experiences
           </h1>
-          <p className={`text-2xl md:text-xl mb-8 max-w-lg ${darkMode ? 'text-cyan-500' : 'text-cyan-500'}`}>
+          <p className={`text-2xl font-semibold md:text-xl mb-8 max-w-lg ${darkMode ? 'text-black' : 'text-cyan-500'}`}>
             An Inclusive Audio to Indian Sign Language converter for the Deaf and Hard of Hearing Community.
           </p>
           <div className="flex space-x-4">
@@ -202,7 +251,38 @@ const HeroSection = ({ darkMode = false, modelPath = null }) => {
         </div>
       </div>
     </div>
+    </div>
   );
 };
 
 export default HeroSection;
+
+
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes float {
+    0% {
+      transform: translateY(0) translateX(0) rotate(0);
+      opacity: 0.3;
+    }
+    33% {
+      transform: translateY(-50px) translateX(50px) rotate(120deg);
+      opacity: 0.6;
+    }
+    66% {
+      transform: translateY(50px) translateX(-30px) rotate(240deg);
+      opacity: 0.3;
+    }
+    100% {
+      transform: translateY(0) translateX(0) rotate(360deg);
+      opacity: 0.3;
+    }
+  }
+  
+  .animate-float {
+    animation-name: float;
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-in-out;
+  }
+`;
+document.head.appendChild(style);

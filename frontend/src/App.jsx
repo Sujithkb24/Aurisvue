@@ -7,6 +7,7 @@ import SettingsPanel from "./components/Settings";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
 import Loader from "./components/ui/Loader";
+import ChatbotIcon from "./components/ui/Chatboticon";
 const App = ({ showLogin = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -157,7 +158,7 @@ const App = ({ showLogin = false }) => {
       )}
 
       {/* Widget toggle button */}
-      <button
+      {/* <button
         onClick={toggleWidget}
         className={`fixed bottom-6 left-6 p-3 rounded-full shadow-lg ${
           darkMode
@@ -166,8 +167,8 @@ const App = ({ showLogin = false }) => {
         } text-white`}
       >
         {showWidget ? <X size={20} /> : <Info size={20} />}
-      </button>
-
+      </button> */}
+<ChatbotIcon/>
       {/* Settings panel */}
       {showSettings && (
         <SettingsPanel

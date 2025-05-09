@@ -20,6 +20,7 @@ import QuickAccessWidget from './plugin/access_widget';
 import HeroSection from './ui/HeroSection';
 import { Book, Play } from 'lucide-react';
 import Training from './pages/TrainingPage';
+import Footer from './pages/footer';
 
 
 const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, activeMode }) => {
@@ -263,7 +264,7 @@ const HomePage = ({ darkMode, toggleDarkMode, navigateToMode, navigateToHome, ac
         navigateToHome={navigateToHome}
         activeMode={activeMode}
       />
-      
+      <Footer/>
     </div>
   );
 };

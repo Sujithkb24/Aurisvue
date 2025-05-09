@@ -7,7 +7,7 @@ const Header = ({ title = "AurisVue", showBackButton = false, onBack, darkMode =
     navigate(`/`);
   };
   return (
-    <header className={`flex justify-between items-center px-4 py-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+    <header className={`flex justify-between items-center px-4 py-4 ${darkMode ? 'g-gradient-to-br from-black to-blue-950' : 'bg-white'} shadow-md`}>
       <div className="flex items-center space-x-2">
         {showBackButton && (
           <button  onClick={() => handleNavigateToMode()} className="p-1 rounded-full hover:bg-gray-700">

@@ -174,7 +174,7 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
                         ${isActive 
                           ? 'bg-red-500 text-white' 
                           : darkMode 
-                            ? 'bg-gray-800 text-white' 
+                            ? 'bg-orange-600 text-white' 
                             : 'bg-white text-gray-700'}`}
             >
               <Mic size={20} />
@@ -189,7 +189,7 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
               onClick={() => handleActionClick('modes')} 
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
                         transition-all hover:scale-110 group
-                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+                        ${darkMode ? 'bg-orange-600 text-white' : 'bg-white text-gray-700'}`}
             >
               <BookOpen size={20} />
               <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
@@ -203,7 +203,7 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
               onClick={() => handleActionClick('home')} 
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
                         transition-all hover:scale-110 group
-                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+                        ${darkMode ? 'bg-orange-600 text-white' : 'bg-white text-gray-700'}`}
             >
               <Home size={20} />
               <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
@@ -217,7 +217,7 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
               onClick={() => handleActionClick('info')} 
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
                         transition-all hover:scale-110 group
-                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+                        ${darkMode ? 'bg-orange-600 text-white' : 'bg-white text-gray-700'}`}
             >
               <Info size={20} />
               <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
@@ -231,7 +231,7 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
               onClick={() => handleActionClick('settings')} 
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md
                         transition-all hover:scale-110 group
-                        ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-700'}`}
+                        ${darkMode ? 'bg-orange-600 text-white' : 'bg-white text-gray-700'}`}
             >
               <Settings size={20} />
               <span className={`absolute right-full mr-2 px-2 py-1 rounded whitespace-nowrap text-sm
@@ -247,10 +247,13 @@ const FloatingActionButton = ({ darkMode, toggleDarkMode, navigateToMode, naviga
           onClick={toggleExpand}
           className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg 
                     transition-transform active:scale-100
-                    ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'}
+                    ${darkMode ? 'bg-indigo-900 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-400'}
                     text-white z-10`}
         >
-          {isExpanded ? <X size={24} /> :  <img src="/AurisVue_logo.png" alt="AurisVue Logo" style={{ height: 'auto', width: 'auto' }} />}
+          {isExpanded ? <X size={24} /> :  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+  <path fill-rule="evenodd" d="M3 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.25Zm0 4.5A.75.75 0 0 1 3.75 9h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4.5a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Zm0 4.5a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
+</svg>
+}
           <div className={`absolute inset-0 rounded-full border-0 
                         ${darkMode ? 'border-blue-500' : 'border-blue-400'}
                         transition-all duration-300`}>
