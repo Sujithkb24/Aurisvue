@@ -10,9 +10,7 @@ import quizRoutes from './routes/quiz.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import classRoutes from './routes/class.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
-import pkg from 'youtube-transcript';
-const { getTranscript } = pkg;
-
+import Analytics from './routes/analytics.routes.js';
 import cors from 'cors';
 import registerSocketHandlers from './socket.js';
 
@@ -31,18 +29,8 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/analytics', Analytics);
 
-app.get('/api/transcript', async (req, res) => {
-  const videoId = req.query.videoId;
-  if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
-
-  try {
-    const transcript = await getTranscript(videoId);
-    res.json(transcript);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 // Socket.io setup
 const server = http.createServer(app);
 const io = new SocketServer(server, {

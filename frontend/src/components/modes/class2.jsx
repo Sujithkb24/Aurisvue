@@ -37,9 +37,8 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const navigate = useNavigate();
   const { teacherId } = useParams();
   const { currentUser, userRole, getToken } = useAuth();
-  const { socket } = useSocket();
+  const { socket, joinRoom, broadcastTeacherSpeech } = useSocket();
   
-  const { joinRoom } = useSocket();
   
   // State for class session
   const [classSession, setClassSession] = useState(null);
@@ -61,7 +60,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   
   // State for student feedback
   const [understanding, setUnderstanding] = useState(null);
-  
+  const [problemWords, setProblemWords] = useState([]);
   // Refs
   const jitsiContainerRef = useRef(null);
   const jitsiApiRef = useRef(null);
@@ -82,6 +81,17 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     (darkMode ? 'text-purple-400' : 'text-purple-600') : 
     (darkMode ? 'text-blue-400' : 'text-blue-600');
 
+    // Add this to an existing useEffect or create a new one
+useEffect(() => {
+  // Only for teachers who have joined a session
+  if (isTeacher && classSession && isMicActive && !transcriptionServiceRef.current) {
+    console.log('Teacher has active mic but no transcription service, starting one');
+    setupTeacherTranscription();
+  }
+}, [isTeacher, classSession, isMicActive]);
+    useEffect(() => {
+      console.log('Transcript history updated:', transcriptHistory);
+    }, [transcriptHistory]);
   // Check if user is authorized and set role
   useEffect(() => {
     if (!currentUser) {
@@ -102,7 +112,6 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
     }
   }, [currentUser, userRole, navigate]);
 
-  // Initialize Jitsi Meet when session is ready
   useEffect(() => {
     if (!classSession || !jitsiMeetLink || !jitsiContainerRef.current) return;
   
@@ -114,79 +123,96 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
       .catch(err => {
         setError('Could not load video conferencing library.');
       });
-  // Add this after initializing Jitsi API
-if (isTeacher) {
-    // For teachers, set up own speech transcription
-    setupTeacherTranscription();
-    
-    // Automatically unmute for teachers
-    setTimeout(() => {
-      jitsiApiRef.current.executeCommand('toggleAudio');
-      setIsMicActive(true);
-    }, 2000);
-  }
+  
     return () => {
+      // Thorough cleanup
       if (jitsiApiRef.current) {
         jitsiApiRef.current.dispose();
-      }
-      
-      // Clean up audio processing resources
-      if (audioProcessorRef.current) {
-        audioProcessorRef.current.disconnect();
-        audioProcessorRef.current = null;
-      }
-      
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
+        jitsiApiRef.current = null;
       }
       
       if (transcriptionServiceRef.current) {
         transcriptionServiceRef.current.stop();
         transcriptionServiceRef.current = null;
       }
+      
+      // Reset states
+      setIsMicActive(false);
+      setDetectedSpeech('');
     };
   }, [classSession, jitsiMeetLink]);
   
+
   // Set up socket events
   useEffect(() => {
     if (!socket || !currentUser) return;
     
+    console.log('Setting up socket listeners, user is', isTeacher ? 'teacher' : 'student');
+    
+    // Clean up previous listeners first
+    socket.off('teacher_speech');
+    socket.off('session_update');
+    
     // Listen for speech updates from teacher
     socket.on('teacher_speech', (speech) => {
-      setDetectedSpeech(speech.text);
+      console.log('TEACHER SPEECH EVENT RECEIVED:', {
+        text: speech.text,
+        isFinal: speech.isFinal,
+        receivedBy: isTeacher ? 'teacher' : 'student'
+      });
       
-      // Add to transcript history if not empty
-      if (speech.text.trim()) {
-        setTranscriptHistory(prev => [...prev, {
-          timestamp: new Date(),
-          text: speech.text
-        }]);
-      }
-      
-      // Log transcript being sent to ISL viewer
-      if (speech.text.trim()) {
-        console.log('Transcript sent to ISL viewer:', speech.text);
-      }
-      
-      // Trigger ISL translation
-      if (speech.isFinal) {
-        setShouldTranslate(true);
+      // For students, this is the primary source of transcription
+      if (!isTeacher) {
+        console.log('Student processing teacher speech', speech.text);
+        setDetectedSpeech(speech.text);
+        
+        // Add to transcript history if not empty
+        if (speech.text.trim() && speech.isFinal) {
+          setTranscriptHistory(prev => [...prev, {
+            timestamp: new Date(),
+            text: speech.text
+          }]);
+          
+          // Trigger ISL translation for students
+          setShouldTranslate(true);
+        }
       }
     });
-    
+    socket.on('student_feedback', (data) => {
+      const { studentId, studentName, understood, sessionId, specificFeedback, problematicWords } = data;
+      console.log('Student feedback received:', data);
+      // If there are problematic words, update the state
+      if (problematicWords && problematicWords.length > 0) {
+        setProblemWords(prev => {
+          // Add new problematic words with student info
+          const newProblematicWords = problematicWords.map(word => ({
+            word,
+            studentId,
+            studentName,
+            timestamp: new Date()
+          }));
+          
+          // Return combined array with newest items first
+          return [...newProblematicWords, ...prev];
+        });
+      }
+    }); 
     // Listen for session updates
     socket.on('session_update', (update) => {
+      console.log('Session update received:', update);
       if (update.type === 'ended') {
         handleSessionEnded();
       }
     });
     
+    // Verify socket connection
+    socket.emit('ping_connection', { status: 'checking connection' });
+    
     return () => {
       socket.off('teacher_speech');
       socket.off('session_update');
     };
-  }, [socket, currentUser]);
+  }, [socket, currentUser, isTeacher, classSession]);
 
   // Initialize Jitsi Meet with audio processing
   const initJitsiMeet = () => {
@@ -220,10 +246,8 @@ if (isTeacher) {
             'settings', 'hangup'
           ],
           prejoinPageEnabled: false,
-          // Enable audio levels for remote participants
           enableNoAudioDetection: true,
           enableNoisyMicDetection: true,
-          // Enable statistics for audio levels
           disableAudioLevels: false,
           enableStatsID: true
         },
@@ -233,7 +257,6 @@ if (isTeacher) {
             'settings', 'hangup'
           ],
           DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-          // Show audio level indicators
           SHOW_JITSI_WATERMARK: false
         },
         userInfo: {
@@ -245,10 +268,46 @@ if (isTeacher) {
       jitsiApiRef.current = new JitsiMeetExternalAPI(domain, options);
       
       // Add event listeners
-      jitsiApiRef.current.addEventListeners({
-        audioMuteStatusChanged: (status) => {
-          setIsMicActive(!status.muted);
-        },
+      // Add event listeners
+jitsiApiRef.current.addEventListeners({
+  // Critical: Handle mic state changes properly 
+  audioMuteStatusChanged: (status) => {
+    console.log('Audio mute status changed:', {
+      muted: status.muted,
+      wasActive: isMicActive,
+      willBeActive: !status.muted,
+      isTeacher
+    });
+    const newMicState = !status.muted;
+    setIsMicActive(newMicState);
+    
+    // Only for teachers: start or stop transcription based on mic state
+    if (isTeacher) {
+      if (newMicState) {
+        console.log('Teacher mic activated, starting transcription');
+        // Force a complete reset and restart of the transcription service
+        if (transcriptionServiceRef.current) {
+          try {
+            transcriptionServiceRef.current.stop();
+          } catch (e) {
+            console.error('Error stopping existing transcription service:', e);
+          }
+          transcriptionServiceRef.current = null;
+        }
+        // Small delay to ensure microphone permissions are properly initialized
+        setTimeout(() => {
+          setupTeacherTranscription();
+        }, 500);
+      } else {
+        console.log('Teacher mic deactivated, stopping transcription');
+        if (transcriptionServiceRef.current) {
+          transcriptionServiceRef.current.stop();
+          transcriptionServiceRef.current = null;
+        }
+      }
+    }
+  },
+
         readyToClose: () => {
           if (isTeacher) {
             endSession();
@@ -256,39 +315,28 @@ if (isTeacher) {
             leaveSession();
           }
         },
+        videoConferenceJoined: (conference) => {
+          console.log('Video conference joined:', conference);
+          // For teachers: automatically unmute and start transcription
+          if (isTeacher) {
+            setTimeout(() => {
+              console.log('Teacher joined conference, unmuting...');
+              jitsiApiRef.current.executeCommand('toggleAudio');
+              // Add a check to verify mic was actually unmuted
+              setTimeout(() => {
+                if (!isMicActive) {
+                  console.log('Forced mic check - starting transcription directly');
+                  setIsMicActive(true);
+                  setupTeacherTranscription();
+                }
+              }, 3000); // Additional check after toggleAudio has had time to take effect
+            }, 2000);
+          }
+        },
         participantJoined: (participant) => {
           console.log('Participant joined:', participant);
-          // If student, enable audio reception and start transcription when teacher joins
-          if (!isTeacher) {
-            // Allow a moment for the tracks to be added
-            setTimeout(() => {
-              setupAudioTranscription();
-            }, 3000);
-          }
-        },
-        audioAvailabilityChanged: (available) => {
-          console.log('Audio availability changed:', available);
-        },
-        incomingMessage: (message) => {
-          console.log('Incoming message:', message);
-        },
-        // Track when new audio tracks become available
-        trackAdded: (track) => {
-          console.log('Track added:', track);
-          if (!isTeacher && track.isAudioTrack()) {
-            // Setup audio transcription for incoming teacher audio
-            setupAudioTranscription();
-          }
         }
       });
-      
-      // For teachers, automatically unmute
-      if (isTeacher) {
-        setTimeout(() => {
-          jitsiApiRef.current.executeCommand('toggleAudio');
-          setIsMicActive(true);
-        }, 2000);
-      }
       
     } catch (error) {
       console.error('Jitsi initialization error:', error);
@@ -297,57 +345,18 @@ if (isTeacher) {
   };
   
   // Setup audio transcription from Jitsi audio source
- // Setup audio transcription from Jitsi audio output
-const setupAudioTranscription = () => {
+  const setupAudioTranscription = () => {
     if (isTeacher || !jitsiApiRef.current) return;
     
     try {
-      // Create audio context if not exists
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      console.log('Setting up student audio transcription with WebRTC approach');
       
-      // Find the Jitsi audio element - this targets the remote audio output
-      const jitsiFrame = jitsiContainerRef.current.querySelector('iframe');
-      if (!jitsiFrame) {
-        console.error('Jitsi iframe not found');
-        return;
-      }
-      
-      // Access the document inside the iframe
-      const iframeDoc = jitsiFrame.contentWindow.document;
-      const remoteAudioElements = iframeDoc.querySelectorAll('audio');
-      
-      if (remoteAudioElements.length === 0) {
-        console.log('No remote audio elements found yet, will retry in 2 seconds');
-        setTimeout(setupAudioTranscription, 2000);
-        return;
-      }
-      
-      console.log(`Found ${remoteAudioElements.length} remote audio elements`);
-      
-      // Create a media stream destination to collect all audio
-      const mediaStreamDest = audioContextRef.current.createMediaStreamDestination();
-      
-      // For each remote audio element, create a media element source and connect to our processor
-      remoteAudioElements.forEach((audioEl, index) => {
-        try {
-          const source = audioContextRef.current.createMediaElementSource(audioEl);
-          source.connect(mediaStreamDest);
-          source.connect(audioContextRef.current.destination); // To ensure audio still plays normally
-          console.log(`Connected remote audio element ${index} to processing`);
-        } catch (e) {
-          console.error(`Failed to process remote audio element ${index}:`, e);
-        }
-      });
-      
-      // Set up speech recognition with the combined audio stream
+      // Use Speech Recognition API directly without trying to capture Jitsi audio
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.error('Speech recognition not supported in this browser');
         return;
       }
       
-      // Create speech recognition instance
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       transcriptionServiceRef.current = new SpeechRecognition();
       
@@ -406,22 +415,7 @@ const setupAudioTranscription = () => {
       
       // Start recognition
       transcriptionServiceRef.current.start();
-      console.log('Transcription service started with Jitsi audio output');
-      
-      // Set up audio processing observer to reconnect if audio sources change
-      const jitsiObserver = new MutationObserver(() => {
-        const currentAudioCount = iframeDoc.querySelectorAll('audio').length;
-        if (currentAudioCount > remoteAudioElements.length) {
-          console.log('New audio elements detected, reconnecting...');
-          setupAudioTranscription(); // Reconnect with new elements
-        }
-      });
-      
-      // Observe the document body for changes to audio elements
-      jitsiObserver.observe(iframeDoc.body, { 
-        childList: true, 
-        subtree: true 
-      });
+      console.log('Transcription service started for student');
       
     } catch (error) {
       console.error('Error setting up audio transcription:', error);
@@ -430,21 +424,37 @@ const setupAudioTranscription = () => {
     }
   };
   // Setup WebSpeech API for teacher's own transcription
-const setupTeacherTranscription = () => {
+  const setupTeacherTranscription = () => {
     if (!isTeacher) return;
     
     try {
+      console.log('Setting up teacher transcription, mic active state:', isMicActive);
+      
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.error('Speech recognition not supported in this browser');
         return;
       }
       
+      // Always ensure we clean up any existing service
+      if (transcriptionServiceRef.current) {
+        console.log('Stopping existing transcription service');
+        try {
+          transcriptionServiceRef.current.stop();
+        } catch (e) {
+          console.error('Error stopping transcription:', e);
+        }
+        transcriptionServiceRef.current = null;
+      }
+      
+      // Create a fresh instance every time
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       transcriptionServiceRef.current = new SpeechRecognition();
       
+      // Configure recognition settings
       transcriptionServiceRef.current.continuous = true;
       transcriptionServiceRef.current.interimResults = true;
       transcriptionServiceRef.current.lang = 'en-US';
+      transcriptionServiceRef.current.maxAlternatives = 1;
       
       // Handle transcription results
       transcriptionServiceRef.current.onresult = (event) => {
@@ -454,6 +464,9 @@ const setupTeacherTranscription = () => {
           .join('');
         
         const isFinal = event.results[0].isFinal;
+        
+        // Debug logging
+        console.log('Teacher transcription received:', transcript, 'isFinal:', isFinal);
         
         // Update state with transcription
         setDetectedSpeech(transcript);
@@ -467,50 +480,76 @@ const setupTeacherTranscription = () => {
           
           setTranscriptHistory(prev => [...prev, newTranscriptItem]);
           
-          // Broadcast to students via socket
-          if (socket) {
-            socket.emit('teacher_speech', {
-              sessionId: classSession._id,
-              text: transcript,
-              isFinal: true,
-              timestamp: new Date()
-            });
+          // Use the broadcastTeacherSpeech function from SocketContext
+          if (classSession) {
+            broadcastTeacherSpeech(classSession.code, transcript, true);
           }
-        } else {
-          // Send interim results too
-          if (socket) {
-            socket.emit('teacher_speech', {
-              sessionId: classSession._id,
-              text: transcript,
-              isFinal: false,
-              timestamp: new Date()
-            });
+        } else if (transcript.trim()) {
+          // Send interim results too using the SocketContext function
+          if (classSession) {
+            broadcastTeacherSpeech(classSession.code, transcript, false);
           }
         }
       };
       
-      // Error and end handlers
+      // Error handler with better logging
       transcriptionServiceRef.current.onerror = (event) => {
-        console.error('Teacher transcription error:', event.error);
-        setTimeout(() => {
-          if (transcriptionServiceRef.current) transcriptionServiceRef.current.start();
-        }, 1000);
-      };
-      
-      transcriptionServiceRef.current.onend = () => {
+        console.error('Teacher transcription error:', event.error, 'Error details:', event);
+        
+        // Don't automatically restart for aborted or network errors
+        if (event.error === 'aborted' || event.error === 'network') {
+          console.log('Transcription aborted or network error, will not restart automatically');
+          return;
+        }
+        
+        // Otherwise restart if the mic is still active
         if (isMicActive) {
+          console.log('Scheduling transcription restart after error...');
           setTimeout(() => {
-            if (transcriptionServiceRef.current) transcriptionServiceRef.current.start();
+            console.log('Restarting transcription after error');
+            setupTeacherTranscription(); // Complete reset and restart
           }, 1000);
         }
       };
       
-      // Start the transcription service
-      transcriptionServiceRef.current.start();
-      console.log('Teacher transcription service started');
+      // Handle end event
+      transcriptionServiceRef.current.onend = () => {
+        console.log('Teacher transcription ended, mic active:', isMicActive);
+        if (isMicActive) {
+          console.log('Transcription ended but mic still active. Restarting...');
+          // Don't try to restart the same instance, create a fresh one
+          transcriptionServiceRef.current = null;
+          setTimeout(() => {
+            setupTeacherTranscription();
+          }, 1000);
+        }
+      };
+      
+      // Extra logging for start
+      console.log('About to start teacher transcription service...');
+      
+      // Start the transcription service with error handling
+      try {
+        transcriptionServiceRef.current.start();
+        console.log('Teacher transcription service started successfully');
+      } catch (err) {
+        console.error('Failed to start teacher transcription:', err);
+        // Clear the service reference to allow future attempts
+        transcriptionServiceRef.current = null;
+        
+        // Try one more time after a delay
+        if (isMicActive) {
+          console.log('Retrying transcription setup after start failure...');
+          setTimeout(() => {
+            setupTeacherTranscription();
+          }, 2000);
+        }
+      }
       
     } catch (error) {
-      console.error('Error setting up teacher transcription:', error);
+      console.error('Error in setupTeacherTranscription:', error);
+      // Always clean up on error
+      transcriptionServiceRef.current = null;
     }
   };
   
@@ -812,26 +851,6 @@ const setupTeacherTranscription = () => {
     );
   };
 
-  // Render transcript panel
-  const renderTranscriptPanel = () => {
-    if (!classSession || transcriptHistory.length === 0) return null;
-    
-    return (
-      <div className={`w-full h-1/4 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-inner overflow-y-auto p-3`}>
-        <h3 className="text-sm font-medium mb-2">Transcript</h3>
-        <div className="space-y-2">
-          {transcriptHistory.map((item, index) => (
-            <div key={index} className="text-sm">
-              <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs mr-2`}>
-                {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}:
-              </span>
-              <span>{item.text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   // Main component render
   return (
@@ -896,67 +915,115 @@ const setupTeacherTranscription = () => {
         {/* Main teaching/learning area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Video Conference Area with ISL view side-by-side */}
-         {/* Video Conference Area with ISL view side-by-side */}
-<div className={`flex-1 relative flex ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-  {/* Jitsi Meet container - full width for teacher, 75% for students */}
-  <div className={`${isTeacher ? 'w-full' : 'w-3/4'} h-full`}>
-    <div 
-      ref={jitsiContainerRef} 
-      className="w-full h-full"
-    />
-  </div>
-  
-  {/* ISL viewer for students only - 25% width */}
-  {!isTeacher && classSession && (
-    <div className="w-1/4 h-full p-2">
-      <div className={`w-full h-full rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
-        <div className="p-2 border-b border-gray-700 flex justify-between items-center">
-          <h3 className="text-sm font-medium">ISL Translation</h3>
-          {isMicActive ? (
-            <Mic size={16} className="text-green-500" />
-          ) : (
-            <MicOff size={16} className="text-red-500" />
-          )}
-        </div>
-        <div className="flex-1 flex items-center justify-center p-2">
-          <ISLViewer 
-            darkMode={darkMode} 
-            mode="public" 
-            speechInput={detectedSpeech} 
-            isListening={true} 
-            islResponse={islResponse} 
-            shouldTranslate={shouldTranslate} 
-            onTranslationDone={() => setShouldTranslate(false)} 
-          />
-        </div>
-      </div>
-    </div>
-  )}
-</div>
+          <div className={`flex-1 relative flex ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            {/* Teacher Layout - 75% Jitsi, 25% Transcript and Problem Words */}
+            {isTeacher ? (
+              <>
+                <div className="w-3/4 h-full">
+                  <div 
+                    ref={jitsiContainerRef} 
+                    className="w-full h-full"
+                  />
+                </div>
+                <div className="w-1/4 h-full border-l border-gray-700 flex flex-col">
+                  {/* Problematic Words Section - Only visible to teachers when words exist */}
+                  {isTeacher && problemWords.length > 0 && (
+                    <div className={`p-3 ${darkMode ? 'bg-gray-700' : 'bg-orange-50'} border-b ${darkMode ? 'border-gray-600' : 'border-orange-200'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className={`font-medium ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                          Unclear Terms ({problemWords.length})
+                        </h3>
+                        <button 
+                          onClick={() => setProblemWords([])}
+                          className="text-xs text-gray-500 hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {problemWords.map((item, index) => (
+                          <div key={index} className={`text-sm p-1 rounded ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.word}</span>
+                              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {item.studentName}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Live Transcript (unchanged) */}
+                  <div className={`p-3 ${darkMode ? 'bg-gray-800' : 'bg-white'} h-full overflow-y-auto flex-1`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-medium">Live Transcript</h3>
+                      <button 
+                        onClick={() => setTranscriptHistory([])}
+                        className={`text-xs ${primaryTextColor} hover:underline`}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {transcriptHistory.length > 0 ? (
+                        transcriptHistory.map((item, index) => (
+                          <div key={index} className="text-sm">
+                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}:
+                            </span>
+                            <p>{item.text}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {isMicActive ? 'Speak to see transcript here...' : 'Mic is muted'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Student Layout - 75% Jitsi, 25% ISL Viewer (unchanged) */
+              <>
+                <div className="w-3/4 h-full">
+                  <div 
+                    ref={jitsiContainerRef} 
+                    className="w-full h-full"
+                  />
+                </div>
+                {classSession && (
+                  <div className="w-1/4 h-full p-2">
+                    <div className={`w-full h-full rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg flex flex-col`}>
+                      <div className="p-2 border-b border-gray-700 flex justify-between items-center">
+                        <h3 className="text-sm font-medium">ISL Translation</h3>
+                        {isMicActive ? (
+                          <Mic size={16} className="text-green-500" />
+                        ) : (
+                          <MicOff size={16} className="text-red-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 flex items-center justify-center p-2">
+                        <ISLViewer 
+                          darkMode={darkMode} 
+                          mode="public" 
+                          speechInput={detectedSpeech} 
+                          isListening={true} 
+                          islResponse={islResponse} 
+                          shouldTranslate={shouldTranslate} 
+                          onTranslationDone={() => setShouldTranslate(false)} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
-{/* Show transcript panel for teachers as a floating panel */}
-{isTeacher && classSession && (
-  <div className={`absolute bottom-24 right-4 w-1/3 h-64 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg rounded-lg overflow-y-auto p-3`}>
-    <h3 className="text-sm font-medium mb-2 flex justify-between">
-      <span>Live Transcript</span>
-      <button className={`text-sm ${primaryTextColor} hover:underline`}>
-        Clear
-      </button>
-    </h3>
-    <div className="space-y-2 max-h-52 overflow-y-auto">
-      {transcriptHistory.map((item, index) => (
-        <div key={index} className="text-sm">
-          <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs mr-2`}>
-            {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}:
-          </span>
-          <span>{item.text}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-          
-          {/* Bottom controls */}
+          {/* Bottom controls (unchanged) */}
           <div className={`p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
             <div className="flex justify-between items-center">
               {/* Left side - Session status */}
@@ -965,12 +1032,6 @@ const setupTeacherTranscription = () => {
                   <div className={`flex items-center space-x-2 ${primaryTextColor}`}>
                     <Monitor size={16} />
                     <span>Live Session</span>
-                    {isTeacher && (
-                      <span className="ml-2 flex items-center">
-                        <span className={`inline-block w-2 h-2 rounded-full ${isMicActive ? 'bg-green-500' : 'bg-red-500'} mr-1`}></span>
-                        <span className="text-sm">{isMicActive ? 'Mic On' : 'Mic Off'}</span>
-                      </span>
-                    )}
                   </div>
                 ) : (
                   <div className="text-gray-500">

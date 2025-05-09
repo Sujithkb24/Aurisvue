@@ -75,7 +75,34 @@ const classSessionSchema = new mongoose.Schema({
       }
     }
   ],
-  
+  // Added feedback array to store student feedback
+  feedback: [
+    {
+      studentId: {
+        type: String,
+        ref: 'User',
+        required: true
+      },
+      understood: {
+        type: Boolean,
+        required: true
+      },
+      transcript: {
+        type: String
+      },
+      conversionResult: {
+        type: String
+      },
+      specificFeedback: {
+        type: String
+      },
+      problematicWords: [String],
+      timestamp: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now,
@@ -84,6 +111,5 @@ const classSessionSchema = new mongoose.Schema({
     type: Date,
   },
 });
-
 const ClassSession = mongoose.model('ClassSession', classSessionSchema);
 export default ClassSession;

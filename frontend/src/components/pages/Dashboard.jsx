@@ -114,13 +114,13 @@ const Dashboard = () => {
 
   // Student-specific learning tools
   const studentTools = [
-    { 
+    {  
       icon: <BookOpen size={20} />,
       label: 'Join Classroom', 
       description: 'Connect with your teacher and participate in live sessions.',
       color: 'from-blue-600 to-indigo-600',
       ctaText: 'Connect with your teacher now',
-      characterImg: '/assets/characters/student-classroom.svg',
+      characterImg: '/assets/class.gif',
       onClick: () => setShowTeacherModal(true) 
     }
   ];
@@ -164,14 +164,14 @@ const Dashboard = () => {
           <header className={`sticky top-0 z-10 backdrop-blur-md bg-opacity-90 ${
             darkMode ? 'bg-gray-900' : 'bg-white'
           } shadow-lg`}>
-            <div className="container mx-auto px-4 py-3 sm:py-4 flex justify-between items-center">
+            <div className="container flex items-center justify-between px-4 py-3 mx-auto sm:py-4">
               <div className="flex items-center space-x-2">
                 <img 
                   src="/AurisVue_logo.png" 
                   alt="AurisVue Logo" 
-                  className="h-8 sm:h-10 md:h-12 w-auto" 
+                  className="w-auto h-8 sm:h-10 md:h-12" 
                 />
-                <h1 className="text-lg sm:text-xl font-bold">AurisVue Interact</h1>
+                <h1 className="text-lg font-bold sm:text-xl">AurisVue Interact</h1>
               </div>
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -186,10 +186,10 @@ const Dashboard = () => {
             </div>
           </header>
       
-          <main ref={mainRef} className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-20 sm:pb-24 relative w-full">
+          <main ref={mainRef} className="container relative w-full px-3 py-4 pb-20 mx-auto sm:px-4 sm:py-6 sm:pb-24">
             {/* Spotlight effect */}
             <div 
-              className="pointer-events-none absolute inset-0 opacity-30"
+              className="absolute inset-0 pointer-events-none opacity-30"
               style={{
                 background: darkMode 
                   ? `radial-gradient(600px circle at ${cursorPosition.x}px ${cursorPosition.y}px, rgba(120, 120, 255, 0.15), transparent 40%)`
@@ -210,12 +210,15 @@ const Dashboard = () => {
                 isWelcomeHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'
               }`}>
                 <img 
-                  src="/assets/characters/welcome-gesture.svg" 
+                  src="/assets/welcome.gif" 
                   alt="Welcome Gesture" 
-                  className="h-16 md:h-24 w-16 md:w-24 object-contain"
+                  className="object-contain w-16 h-16 md:h-24 md:w-24"
+                  height={100}
+                  width={100}
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = "/api/placeholder/96/96";
+                    
                   }}
                 />
               </div>
@@ -223,10 +226,10 @@ const Dashboard = () => {
               <div className={`transition-all duration-500 ease-in-out ${
                 isWelcomeHovered && window.innerWidth >= 640 ? 'transform translate-x-[-20px] sm:translate-x-[-30px]' : ''
               }`}>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">
+                <h2 className="mb-2 text-2xl font-bold text-white sm:text-3xl sm:mb-3">
                   Welcome, {userInfo?.name || 'User'}
                 </h2>
-                <p className="text-white text-opacity-90 text-base sm:text-lg">
+                <p className="text-base text-white text-opacity-90 sm:text-lg">
                   {userRole === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard'}
                   {schoolInfo && ` · ${schoolInfo.name}`}
                 </p>
@@ -235,9 +238,9 @@ const Dashboard = () => {
       
             {/* Teacher-specific tools section */}
             {userRole === 'teacher' && (
-              <div className="mb-6 sm:mb-8 w-full">
-                <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">Teaching Tools</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 w-full">
+              <div className="w-full mb-6 sm:mb-8">
+                <h3 className="mb-3 text-lg font-bold text-center sm:text-xl sm:mb-4">Teaching Tools</h3>
+                <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 sm:gap-6">
                   {teacherTools.map((tool, index) => (
                     <div
                       key={`teacher-${index}`}
@@ -259,7 +262,7 @@ const Dashboard = () => {
                         <img 
                           src={tool.characterImg} 
                           alt="ISL Character" 
-                          className="h-full w-full object-contain"
+                          className="object-contain w-full h-full"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = "/api/placeholder/96/96";
@@ -267,7 +270,7 @@ const Dashboard = () => {
                         />
                       </div>
                       
-                      <div className="flex items-center justify-between relative h-full">
+                      <div className="relative flex items-center justify-between h-full">
                         <div className={`flex flex-col justify-center transition-all duration-500 ease-in-out ${
                           activeCardIndex === `teacher-${index}` && window.innerWidth >= 640 ? 'w-3/5' : 'w-full'
                         }`}>
@@ -285,7 +288,7 @@ const Dashboard = () => {
                           <div className={`transition-all duration-500 ease-in-out ${
                             activeCardIndex === `teacher-${index}` ? 'opacity-0 absolute' : 'opacity-100'
                           }`}>
-                            <h3 className="font-medium text-sm sm:text-base">{tool.label}</h3>
+                            <h3 className="text-sm font-medium sm:text-base">{tool.label}</h3>
                             <p className="text-xs sm:text-sm opacity-70">{tool.description}</p>
                           </div>
                           
@@ -293,7 +296,7 @@ const Dashboard = () => {
                           <div className={`transition-all duration-500 ease-in-out ${
                             activeCardIndex === `teacher-${index}` ? 'opacity-100' : 'opacity-0 absolute'
                           }`}>
-                            <h3 className="font-bold text-white text-sm sm:text-base">{tool.ctaText}</h3>
+                            <h3 className="text-sm font-bold text-white sm:text-base">{tool.ctaText}</h3>
                           </div>
                         </div>
                         
@@ -309,9 +312,9 @@ const Dashboard = () => {
       
             {/* Student-specific tools section */}
             {userRole === 'student' && (
-              <div className="mb-6 sm:mb-8 w-full">
-                <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">Learning Tools</h3>
-                <div className="grid grid-cols-1 gap-4 w-full">
+              <div className="w-full mb-6 sm:mb-8">
+                <h3 className="mb-3 text-lg font-bold text-center sm:text-xl sm:mb-4">Learning Tools</h3>
+                <div className="grid w-full grid-cols-1 gap-4">
                   {studentTools.map((tool, index) => (
                     <div
                       key={`student-${index}`}
@@ -333,7 +336,7 @@ const Dashboard = () => {
                         <img 
                           src={tool.characterImg} 
                           alt="ISL Character" 
-                          className="h-full w-full object-contain"
+                          className="object-contain w-full h-full"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = "/api/placeholder/96/96";
@@ -341,7 +344,7 @@ const Dashboard = () => {
                         />
                       </div>
                       
-                      <div className="flex items-center justify-between relative h-full">
+                      <div className="relative flex items-center justify-between h-full">
                         <div className={`flex flex-col justify-center transition-all duration-500 ease-in-out ${
                           activeCardIndex === `student-${index}` && window.innerWidth >= 640 ? 'w-3/5' : 'w-full'
                         }`}>
@@ -359,7 +362,7 @@ const Dashboard = () => {
                           <div className={`transition-all duration-500 ease-in-out ${
                             activeCardIndex === `student-${index}` ? 'opacity-0 absolute' : 'opacity-100'
                           }`}>
-                            <h3 className="font-medium text-sm sm:text-base">{tool.label}</h3>
+                            <h3 className="text-sm font-medium sm:text-base">{tool.label}</h3>
                             <p className="text-xs sm:text-sm opacity-70">{tool.description}</p>
                           </div>
                           
@@ -367,7 +370,7 @@ const Dashboard = () => {
                           <div className={`transition-all duration-500 ease-in-out ${
                             activeCardIndex === `student-${index}` ? 'opacity-100' : 'opacity-0 absolute'
                           }`}>
-                            <h3 className="font-bold text-white text-sm sm:text-base">{tool.ctaText}</h3>
+                            <h3 className="text-sm font-bold text-white sm:text-base">{tool.ctaText}</h3>
                           </div>
                         </div>
                         
@@ -382,9 +385,9 @@ const Dashboard = () => {
             )}
       
             {/* Common tools section for both roles */}
-            <div className="mb-6 sm:mb-8 w-full">
-              <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">Explore & Learn</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full">
+            <div className="w-full mb-6 sm:mb-8">
+              <h3 className="mb-3 text-lg font-bold text-center sm:text-xl sm:mb-4">Explore & Learn</h3>
+              <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                 {commonTools.map((tool, index) => (
                   <div
                     key={`common-${index}`}
@@ -406,7 +409,7 @@ const Dashboard = () => {
                       <img 
                         src={tool.characterImg} 
                         alt="ISL Character" 
-                        className="h-full w-full object-contain"
+                        className="object-contain w-full h-full"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src = "/api/placeholder/96/96";
@@ -414,7 +417,7 @@ const Dashboard = () => {
                       />
                     </div>
                     
-                    <div className="flex items-center justify-between relative h-full">
+                    <div className="relative flex items-center justify-between h-full">
                       <div className={`flex flex-col justify-center transition-all duration-500 ease-in-out ${
                         activeCardIndex === `common-${index}` && window.innerWidth >= 640 ? 'w-3/5' : 'w-full'
                       }`}>
@@ -432,7 +435,7 @@ const Dashboard = () => {
                         <div className={`transition-all duration-500 ease-in-out ${
                           activeCardIndex === `common-${index}` ? 'opacity-0 absolute' : 'opacity-100'
                         }`}>
-                          <h3 className="font-medium text-sm sm:text-base">{tool.label}</h3>
+                          <h3 className="text-sm font-medium sm:text-base">{tool.label}</h3>
                           <p className="text-xs sm:text-sm opacity-70">{tool.description}</p>
                         </div>
                         
@@ -440,7 +443,7 @@ const Dashboard = () => {
                         <div className={`transition-all duration-500 ease-in-out ${
                           activeCardIndex === `common-${index}` ? 'opacity-100' : 'opacity-0 absolute'
                         }`}>
-                          <h3 className="font-bold text-white text-sm sm:text-base">{tool.ctaText}</h3>
+                          <h3 className="text-sm font-bold text-white sm:text-base">{tool.ctaText}</h3>
                         </div>
                       </div>
                       
@@ -457,31 +460,31 @@ const Dashboard = () => {
             <div className={`rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 ${
               darkMode ? 'bg-gray-800' : 'bg-white'
             } shadow-lg text-center w-full`}>
-              <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Quick Stats</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <h3 className="mb-3 text-lg font-bold sm:text-xl sm:mb-4">Quick Stats</h3>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
                 <div className={`p-3 sm:p-4 rounded-lg group transition-all duration-300 hover:scale-105 ${
                   darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
                 }`}>
-                  <p className="text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity">Recent Sessions</p>
-                  <p className="text-xl sm:text-2xl font-bold group-hover:text-amber-500 transition-colors">12</p>
+                  <p className="text-xs transition-opacity sm:text-sm opacity-70 group-hover:opacity-100">Recent Sessions</p>
+                  <p className="text-xl font-bold transition-colors sm:text-2xl group-hover:text-amber-500">12</p>
                 </div>
                 <div className={`p-3 sm:p-4 rounded-lg group transition-all duration-300 hover:scale-105 ${
                   darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
                 }`}>
-                  <p className="text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity">Quizzes Taken</p>
-                  <p className="text-xl sm:text-2xl font-bold group-hover:text-blue-500 transition-colors">8</p>
+                  <p className="text-xs transition-opacity sm:text-sm opacity-70 group-hover:opacity-100">Quizzes Taken</p>
+                  <p className="text-xl font-bold transition-colors sm:text-2xl group-hover:text-blue-500">8</p>
                 </div>
                 <div className={`p-3 sm:p-4 rounded-lg group transition-all duration-300 hover:scale-105 ${
                   darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
                 }`}>
-                  <p className="text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity">Leaderboard Rank</p>
-                  <p className="text-xl sm:text-2xl font-bold group-hover:text-purple-500 transition-colors">#4</p>
+                  <p className="text-xs transition-opacity sm:text-sm opacity-70 group-hover:opacity-100">Leaderboard Rank</p>
+                  <p className="text-xl font-bold transition-colors sm:text-2xl group-hover:text-purple-500">#4</p>
                 </div>
                 <div className={`p-3 sm:p-4 rounded-lg group transition-all duration-300 hover:scale-105 ${
                   darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
                 }`}>
-                  <p className="text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity">Achievements</p>
-                  <p className="text-xl sm:text-2xl font-bold group-hover:text-green-500 transition-colors">3</p>
+                  <p className="text-xs transition-opacity sm:text-sm opacity-70 group-hover:opacity-100">Achievements</p>
+                  <p className="text-xl font-bold transition-colors sm:text-2xl group-hover:text-green-500">3</p>
                 </div>
               </div>
             </div>
