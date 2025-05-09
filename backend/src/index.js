@@ -10,6 +10,7 @@ import quizRoutes from './routes/quiz.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import classRoutes from './routes/class.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
+import audioRoutes from './routes/audioTranscription.routes.js'; // Assuming audio transcription routes are in class.routes.js
 
 import cors from 'cors';
 import registerSocketHandlers from './socket.js';
@@ -27,7 +28,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
-
+app.use('/api/audio', audioRoutes); // Assuming audio transcription routes are in class.routes.js
 // Socket.io setup
 const server = http.createServer(app);
 const io = new SocketServer(server, {

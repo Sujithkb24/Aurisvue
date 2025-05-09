@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
+import { Mic, MicOff, X, MessageSquare, ChevronUp, ChevronDown, Globe } from 'lucide-react';
 import ISLViewer from '../ISL_viewer';
 import Header from '../header';
-import { SocketProvider,useSocket } from '../../contexts/SocketContext';
+import { SocketProvider, useSocket } from '../../contexts/SocketContext';
+
+const LANGUAGES = [
+  { code: 'en-US', name: 'English (US)' },
+  { code: 'hi-IN', name: 'Hindi' },
+  { code: 'ta-IN', name: 'Tamil' },
+  { code: 'te-IN', name: 'Telugu' },
+  { code: 'kn-IN', name: 'Kannada' },
+  { code: 'ml-IN', name: 'Malayalam' }
+];
 
 const PublicMode = ({ darkMode = true, onBack }) => {
   const [isMicActive, setIsMicActive] = useState(false);
@@ -12,8 +21,11 @@ const PublicMode = ({ darkMode = true, onBack }) => {
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [shouldTranslate, setShouldTranslate] = useState(false);
-
-  const recognitionRef = useRef(null);
+  const [selectedLanguage, setSelectedLanguage] = useState('en-US');
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   const { isConnected, sendSpeechTranscript, islResponse, resetIslResponse } = useSocket();
 
   // Track window size for responsive UI
@@ -26,65 +38,93 @@ const PublicMode = ({ darkMode = true, onBack }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Handle stopping media recorder when component unmounts
   useEffect(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Your browser doesn't support speech recognition. Please use Chrome or Edge.");
-      return;
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'en-US';
-
-    recognitionRef.current.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0])
-        .map((result) => result.transcript)
-        .join('');
-
-      setDetectedSpeech(transcript);
-
-      if (event.results[0].isFinal) {
-        setTranscriptHistory((prev) => [
-          { text: transcript, timestamp: new Date().toLocaleTimeString() },
-          ...prev.slice(0, 9),
-        ]);
-
-        sendSpeechTranscript(transcript);
-      }
-    };
-
-    recognitionRef.current.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        alert('Microphone access denied. Please allow microphone access to use this feature.');
-        setIsMicActive(false);
-      }
-    };
-
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
       }
     };
-  }, [isConnected, sendSpeechTranscript]);
+  }, []);
 
-  const startMic = () => {
+  const startMic = async () => {
     try {
-      recognitionRef.current.start();
-      setIsMicActive(true);
       resetIslResponse();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        await sendAudioToServer(audioBlob);
+        
+        // Clear the audio chunks for the next recording
+        audioChunksRef.current = [];
+        
+        // Restart recording if still active
+        if (isMicActive) {
+          mediaRecorderRef.current.start(3000); // Capture in 3-second chunks
+        }
+      };
+
+      // Start recording in chunks
+      mediaRecorderRef.current.start(3000); // Capture in 3-second chunks
+      setIsMicActive(true);
     } catch (error) {
-      console.error('Failed to start speech recognition:', error);
+      console.error('Failed to start recording:', error);
+      alert('Microphone access denied. Please allow microphone access to use this feature.');
     }
   };
 
   const stopMic = () => {
-    recognitionRef.current.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      
+      // Stop all audio tracks
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
     setIsMicActive(false);
     setDetectedSpeech('');
+  };
+
+  const sendAudioToServer = async (audioBlob) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob);
+      formData.append('predominantLang', selectedLanguage);
+
+      const response = await fetch('http://localhost:5000/api/audio', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.transcript) {
+        setDetectedSpeech(result.transcript);
+        
+        // Add to history
+        setTranscriptHistory((prev) => [
+          { text: result.transcript, timestamp: new Date().toLocaleTimeString() },
+          ...prev.slice(0, 9),
+        ]);
+
+        // Send to socket for ISL translation
+        sendSpeechTranscript(result.transcript);
+      }
+    } catch (error) {
+      console.error('Error sending audio to server:', error);
+    }
   };
 
   const toggleHistory = () => {
@@ -95,6 +135,15 @@ const PublicMode = ({ darkMode = true, onBack }) => {
     setTranscriptHistory([]);
   };
 
+  const toggleLanguageSelector = () => {
+    setShowLanguageSelector(prev => !prev);
+  };
+
+  const changeLanguage = (langCode) => {
+    setSelectedLanguage(langCode);
+    setShowLanguageSelector(false);
+  };
+
   // Determine if we should show the floating controls
   const isMobile = windowWidth < 768;
   const shouldShowMainControls = !isMobile || (isMobile && !showFloatingControls);
@@ -103,6 +152,11 @@ const PublicMode = ({ darkMode = true, onBack }) => {
     if (detectedSpeech && detectedSpeech.trim() !== '') {
       setShouldTranslate(true);
     }
+  };
+
+  const getLanguageName = (code) => {
+    const language = LANGUAGES.find(lang => lang.code === code);
+    return language ? language.name : code;
   };
 
   return (
@@ -160,6 +214,45 @@ const PublicMode = ({ darkMode = true, onBack }) => {
           darkMode ? 'bg-gray-800 border-l border-gray-700' : 'bg-white border-l border-gray-200'
         } ${shouldShowMainControls ? 'flex' : 'hidden md:flex'} transition-all duration-300`}>
           <div className="flex flex-col h-full p-6">
+            {/* Language Selector */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={toggleLanguageSelector}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
+                    darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                  } transition-colors duration-200`}
+                >
+                  <Globe size={18} />
+                  <span>{getLanguageName(selectedLanguage)}</span>
+                  {showLanguageSelector ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              </div>
+              
+              {showLanguageSelector && (
+                <div className={`mt-2 rounded-lg overflow-hidden border ${
+                  darkMode ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-white'
+                } shadow-lg`}>
+                  <ul>
+                    {LANGUAGES.map((lang) => (
+                      <li key={lang.code}>
+                        <button
+                          onClick={() => changeLanguage(lang.code)}
+                          className={`w-full text-left px-4 py-2 ${
+                            selectedLanguage === lang.code
+                              ? (darkMode ? 'bg-blue-600' : 'bg-blue-500 text-white')
+                              : (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100')
+                          } transition-colors duration-200`}
+                        >
+                          {lang.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
             {/* Controls section */}
             <div className="flex flex-col items-center justify-center flex-1">
               <div
@@ -176,7 +269,7 @@ const PublicMode = ({ darkMode = true, onBack }) => {
               
               <p className="mb-8 text-lg text-center">
                 {isMicActive
-                  ? 'Listening... Speak clearly for ISL translation'
+                  ? `Listening in ${getLanguageName(selectedLanguage)}...`
                   : 'Press the microphone button to start ISL translation'}
               </p>
               
@@ -296,6 +389,45 @@ const PublicMode = ({ darkMode = true, onBack }) => {
             >
               <X size={18} />
             </button>
+          </div>
+
+          {/* Mobile language selector */}
+          <div className="mb-4">
+            <button 
+              onClick={toggleLanguageSelector}
+              className={`flex items-center justify-between w-full px-3 py-2 rounded-lg ${
+                darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+              } transition-colors duration-200`}
+            >
+              <div className="flex items-center space-x-2">
+                <Globe size={16} />
+                <span>{getLanguageName(selectedLanguage)}</span>
+              </div>
+              {showLanguageSelector ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            
+            {showLanguageSelector && (
+              <div className={`mt-2 rounded-lg overflow-hidden border ${
+                darkMode ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-white'
+              } max-h-32 overflow-y-auto`}>
+                <ul>
+                  {LANGUAGES.map((lang) => (
+                    <li key={lang.code}>
+                      <button
+                        onClick={() => changeLanguage(lang.code)}
+                        className={`w-full text-left px-3 py-2 text-sm ${
+                          selectedLanguage === lang.code
+                            ? (darkMode ? 'bg-blue-600' : 'bg-blue-500 text-white')
+                            : (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100')
+                        } transition-colors duration-200`}
+                      >
+                        {lang.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {detectedSpeech && (
