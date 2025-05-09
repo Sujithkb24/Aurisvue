@@ -82,6 +82,7 @@ export const getSessionFeedback = async (req, res) => {
 export const getTeacherAnalytics = async (req, res) => {
   try {
     const userId = req.user.uid;
+  
     
     // Get all class sessions created by this teacher
     const sessions = await ClassSession.find({ createdBy: userId });
