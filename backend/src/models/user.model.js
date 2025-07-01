@@ -62,6 +62,10 @@ userSchema.methods.updateLastLogin = function() {
   return this.save();
 };
 userSchema.pre('save', async function(next) {
+  // Auto-set name from email if not provided
+  if (!this.name && this.email) {
+    this.name = this.email.split('@')[0];
+  }
   if (!this.isModified('password')) return next();
   try {
     const salt = await bcrypt.genSalt(10);
