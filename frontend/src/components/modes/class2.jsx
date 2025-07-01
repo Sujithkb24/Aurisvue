@@ -34,11 +34,38 @@ function loadJitsiScript() {
   return _jitsiScriptLoading;
 }
 
+const Toast = ({ message, actions = [], onClose, duration = 5000 }) => {
+  React.useEffect(() => {
+    if (duration === null) return;
+    const timer = setTimeout(() => {
+      onClose && onClose();
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+  return (
+    <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-4 animate-fade-in">
+      <span>{message}</span>
+      {actions.map((action, idx) => (
+        <button
+          key={idx}
+          onClick={action.onClick}
+          className="ml-2 px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm"
+        >
+          {action.label}
+        </button>
+      ))}
+      <button onClick={onClose} className="ml-2 px-2 py-1 rounded bg-gray-700 hover:bg-gray-800 text-white text-xs">✕</button>
+    </div>
+  );
+};
+
 const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, activeMode }) => {
   const navigate = useNavigate();
   const { teacherId } = useParams();
   const { currentUser, userRole, getToken } = useAuth();
   const { socket, joinRoom, broadcastTeacherSpeech } = useSocket();
+  const [className, setClassName] = useState('');
+const [showClassNameModal, setShowClassNameModal] = useState(false);
   
   
   // State for class session
@@ -60,6 +87,8 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [error, setError] = useState('');
   const [studentFeedback, setStudentFeedback] = useState(null); // New state for student feedback
+  // Toast state
+  const [toast, setToast] = useState(null);
 
   // State for student feedback
   const [understanding, setUnderstanding] = useState(null);
@@ -140,12 +169,26 @@ useEffect(() => {
       navigate('/login', { state: { redirectTo: '/class' } });
       return;
     }
-    
+
     setIsTeacher(userRole === 'teacher');
-    
+
     // If teacher, check for active session or offer to create one
     if (userRole === 'teacher') {
-      checkForActiveSession();
+      (async () => {
+        const token = await getToken();
+        const response = await fetch(`${API_URL}/classes/active`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.activeSession) {
+            setPendingActiveSession(data.activeSession);
+            setShowContinueSessionModal(true);
+            return;
+          }
+        }
+        setShowClassNameModal(true);
+      })();
     } else {
       // If student, show join modal if not in a session
       if (!classSession) {
@@ -153,6 +196,53 @@ useEffect(() => {
       }
     }
   }, [currentUser, userRole, navigate]);
+
+  // State for continue session modal
+  const [showContinueSessionModal, setShowContinueSessionModal] = useState(false);
+  const [pendingActiveSession, setPendingActiveSession] = useState(null);
+
+  // Render continue session modal for teacher
+  const renderContinueSessionModal = () => {
+    if (!showContinueSessionModal || !pendingActiveSession) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-xl p-6 w-full max-w-md`}>
+          <h2 className="text-xl font-bold mb-4">Continue Previous Session?</h2>
+          <p className="mb-4 text-base">
+            You have an active class session: <span className="font-semibold">{pendingActiveSession.title || 'Untitled Session'}</span>.<br/>
+            Would you like to continue it?
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setShowContinueSessionModal(false);
+                setShowClassNameModal(true);
+                setPendingActiveSession(null);
+              }}
+              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+            >
+              Create New
+            </button>
+            <button
+              onClick={() => {
+                setClassSession(pendingActiveSession);
+                setClassCode(pendingActiveSession.code);
+                setJitsiMeetLink(pendingActiveSession.jitsiLink);
+                if (socket && pendingActiveSession._id) {
+                  socket.emit('join_room', `session-${pendingActiveSession._id}`);
+                }
+                setShowContinueSessionModal(false);
+                setPendingActiveSession(null);
+              }}
+              className={`px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors`}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!classSession || !jitsiMeetLink || !jitsiContainerRef.current) return;
@@ -580,23 +670,22 @@ jitsiApiRef.current.addEventListeners({
   // Check for active session (teacher only)
   const checkForActiveSession = async () => { 
     if (userRole !== 'teacher') return;
-    
     setIsLoading(true);
     try {
       const token = await getToken();
       const response = await fetch(`${API_URL}/classes/active`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
       if (response.ok) {
         const data = await response.json();
         if (data.activeSession) {
           setClassSession(data.activeSession);
           setClassCode(data.activeSession.code);
           setJitsiMeetLink(data.activeSession.jitsiLink);
-          
-          // Join the session room
-          joinRoom(data.activeSession.code);
+          // Join the session room (socket.io)
+          if (socket && data.activeSession._id) {
+            socket.emit('join_room', `session-${data.activeSession._id}`);
+          }
         }
       }
     } catch (error) {
@@ -605,11 +694,10 @@ jitsiApiRef.current.addEventListeners({
       setIsLoading(false);
     }
   };
-  
+
   // Create new class session (teacher only)
   const createClassSession = async () => {
     if (userRole !== 'teacher') return;
-  
     setIsLoading(true);
     try {
       const token = await getToken();
@@ -620,20 +708,20 @@ jitsiApiRef.current.addEventListeners({
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: "New ISL Learning Session",
+          title: className.trim() || "New ISL Learning Session",
           description: "Interactive sign language learning session"
         })
       });
-  
       if (response.ok) {
         const data = await response.json();
         setClassSession(data.session);
         setClassCode(data.session.code);
         setJitsiMeetLink(data.session.jitsiMeetLink);
         setClassJoined(data.session);
-        // Join the session room
-        joinRoom(data.session.code);
-  
+        // Join the session room (socket.io)
+        if (socket && data.session._id) {
+          socket.emit('join_room', `session-${data.session._id}`);
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Failed to create class session');
@@ -644,11 +732,10 @@ jitsiApiRef.current.addEventListeners({
       setIsLoading(false);
     }
   };
-  
+
   // Join class session (student only)
   const joinClassSession = async () => {
     if (userRole !== 'student' || !classCode.trim()) return;
-  
     setIsLoading(true);
     try {
       const token = await getToken();
@@ -660,17 +747,15 @@ jitsiApiRef.current.addEventListeners({
         },
         body: JSON.stringify({ code: classCode })
       });
-  
       if (response.ok) {
         const data = await response.json();
         setClassSession(data.session);
         setJitsiMeetLink(data.session.jitsiLink);
-        
-        console.log('Class joined:', classJoined);
         setShowJoinModal(false);
-  
-        // Join the session room
-        joinRoom(data.session.code);
+        // Join the session room (socket.io)
+        if (socket && data.session._id) {
+          socket.emit('join_room', `session-${data.session._id}`);
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Invalid class code');
@@ -681,11 +766,13 @@ jitsiApiRef.current.addEventListeners({
       setIsLoading(false);
     }
   };
-  
+
   // Handle continuing session
   const handleContinueSession = (session) => {
-    // Join the room with the session code
-    joinRoom(session.code);
+    // Join the room with the session code (socket.io)
+    if (socket && session._id) {
+      socket.emit('join_room', `session-${session._id}`);
+    }
     setClassJoined(session);
     console.log('Continuing session:', session);
     setJitsiMeetLink(session.jitsiLink);
@@ -724,7 +811,26 @@ jitsiApiRef.current.addEventListeners({
         transcriptionServiceRef.current.stop();
         transcriptionServiceRef.current = null;
       }
-      
+      setToast({
+        message: 'Session ended successfully!',
+        actions: [
+          {
+            label: 'Start New Class',
+            onClick: () => {
+              setShowClassNameModal(true);
+              setToast(null);
+            }
+          },
+          {
+            label: 'Go Home',
+            onClick: () => {
+              navigate('/');
+              setToast(null);
+            }
+          }
+        ],
+        duration: null // Don't auto-dismiss
+      });
       // Reset state
       setClassSession(null);
       setClassCode('');
@@ -739,7 +845,6 @@ jitsiApiRef.current.addEventListeners({
           sessionId: classSession._id
         });
       }
-      
     } catch (error) {
       setError("Error ending session");
     }
@@ -798,9 +903,16 @@ jitsiApiRef.current.addEventListeners({
       transcriptionServiceRef.current.stop();
       transcriptionServiceRef.current = null;
     }
-    
-    alert('The session has ended.');
-    
+    setToast({
+      message: 'The session has ended.',
+      actions: [
+        {
+          label: 'OK',
+          onClick: () => setToast(null)
+        }
+      ],
+      duration: 7000
+    });
     // Reset state
     setClassSession(null);
     setClassCode('');
@@ -817,15 +929,30 @@ jitsiApiRef.current.addEventListeners({
   // Share class code
   const shareClassCode = async () => {
     if (!classCode) return;
-    
     try {
       await navigator.clipboard.writeText(classCode);
-      alert(`Class code ${classCode} copied to clipboard!`);
+      setToast({
+        message: `Class code ${classCode} copied to clipboard!`,
+        actions: [],
+        duration: 3000
+      });
     } catch (err) {
-      alert(`Class code: ${classCode}`);
+      setToast({
+        message: `Class code: ${classCode}`,
+        actions: [
+          {
+            label: 'Copy',
+            onClick: async () => {
+              await navigator.clipboard.writeText(classCode);
+              setToast({ message: 'Copied!', actions: [], duration: 2000 });
+            }
+          }
+        ],
+        duration: 7000
+      });
     }
   };
-  
+
   // Render join modal for students
   const renderJoinModal = () => {
     if (!showJoinModal || userRole !== 'student') return null;
@@ -879,19 +1006,99 @@ jitsiApiRef.current.addEventListeners({
     );
   };
 
+  // Render class name modal for new session
+const renderClassNameModal = () => {
+  if (!showClassNameModal || userRole !== 'teacher') return null;
+  
+  return (
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50`}>
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-xl p-6 w-full max-w-md`}>
+        <h2 className="text-xl font-bold mb-4">Create New ISL Session</h2>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">Class Name</label>
+          <input
+            type="text"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg ${
+              darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
+            } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+            placeholder="Enter class name (e.g., Grade 5 ISL Basics)"
+            maxLength={50}
+          />
+          <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            This will help students identify your session
+          </p>
+        </div>
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-500 bg-opacity-20 text-red-500 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+        
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={() => {
+              setShowClassNameModal(false);
+              setClassName('');
+              setError('');
+            }}
+            className={`px-4 py-2 rounded-lg ${
+              darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+            } transition-colors`}
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          
+          <button
+            onClick={async () => {
+              if (!className.trim()) {
+                setError('Please enter a class name');
+                return;
+              }
+              setShowClassNameModal(false);
+              await createClassSession();
+            }}
+            disabled={!className.trim() || isLoading}
+            className={`px-4 py-2 rounded-lg ${primaryColor} ${primaryHoverColor} text-white flex items-center transition-colors ${
+              (!className.trim() || isLoading) && 'opacity-50 cursor-not-allowed'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating...
+              </>
+            ) : (
+              'Create Session'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
   // Main component render
   return (
     <div className={`flex flex-col h-screen w-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
-      <ActiveSessionModal
-        userRole={userRole}
-        activeSession={classSession}
-        onContinueSession={handleContinueSession}
-        onCreateNewClass={createClassSession}
-        isLoading={isLoading}
-        // Make modal automatically visible for teachers based on session check
-        isOpen={userRole === 'teacher' && !classSession}
-      />
+      {/*
+        ActiveSessionModal is not needed after creating a class.
+        Only show for teachers if there is no active session and not just after creating one.
+      */}
+      {userRole === 'teacher' && !classSession && !isLoading && (
+        <ActiveSessionModal
+          userRole={userRole}
+          activeSession={classSession}
+          onContinueSession={handleContinueSession}
+          onCreateNewClass={() => setShowClassNameModal(true)}
+          isLoading={isLoading}
+          isOpen={true}
+        />
+      )}
       
       {/* Custom Header */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md p-4`}>
@@ -936,7 +1143,10 @@ jitsiApiRef.current.addEventListeners({
         </div>
       </div>
   
+      {renderContinueSessionModal()}
       {renderJoinModal()}
+      {renderClassNameModal()}
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       
       {/* Main content area */}
       <div className="flex flex-1 overflow-y-auto">
@@ -1082,6 +1292,7 @@ jitsiApiRef.current.addEventListeners({
                 
                 {/* Feedback component for students */}
                 {!isTeacher && classSession && (
+                  <div className="absolute bottom-full mb-2 right-0">
                   <FeedbackComponent
     darkMode={darkMode}
     currentUser={currentUser}
@@ -1092,6 +1303,8 @@ jitsiApiRef.current.addEventListeners({
     studentFeedback={studentFeedback} // Pass as prop
     setStudentFeedback={setStudentFeedback} // Pass setter as prop
   />
+  </div>
+
                 )}
               </div>
             </div>

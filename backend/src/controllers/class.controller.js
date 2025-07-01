@@ -345,15 +345,14 @@ export const clearHandRaises = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-// End class session (Teacher only)
 
 // BACKEND CODE - controllers/sessionController.js
 export const endClassSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user.uid;
-
-   
+    
+   console.log(req.user.role)
     if (req.user.role !== 'teacher') {
       return res.status(403).json({ message: 'Not authorized to end sessions' });
     }

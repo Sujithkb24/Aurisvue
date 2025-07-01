@@ -10,7 +10,7 @@ import {
   clearHandRaises,
   endClassSession,
   getSessionTranscripts,
-  getSessionMessages
+  getSessionMessages,
 } from '../controllers/class.controller.js';
 import verifyToken  from '../middleware/auth.middleware.js';
 
@@ -24,7 +24,7 @@ router.post('/:sessionId/hand-raise', verifyToken, raiseHand); // Student role c
 router.get('/:sessionId/hand-raises', verifyToken, getHandRaises); // Teacher role check in controller
 router.patch('/:sessionId/hand-raises/:handRaiseId', verifyToken, respondToHandRaise); // Teacher role check in controller
 router.delete('/:sessionId/hand-raises', verifyToken, clearHandRaises); // Teacher role check in controller
-router.put('/:sessionId/end', verifyToken ,endClassSession);
+router.post('/:sessionId/end', verifyToken, endClassSession);
 router.get('/:sessionId/transcripts', verifyToken, getSessionTranscripts);
 router.get('/:sessionId/messages', verifyToken, getSessionMessages);
 

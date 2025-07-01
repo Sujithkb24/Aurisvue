@@ -1,4 +1,5 @@
 import admin from '../config/firebase.js';
+import User from '../models/user.model.js';
 
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
@@ -6,7 +7,18 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    req.user = decoded;
+    // Fetch user from MongoDB to get role
+    const user = await User.findOne({ uid: decoded.uid });
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    req.user = {
+      ...decoded,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+      uid: user.uid
+    };
     next();
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });

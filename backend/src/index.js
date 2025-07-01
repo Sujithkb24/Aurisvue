@@ -11,7 +11,7 @@ import quizRoutes from './routes/quiz.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import classRoutes from './routes/class.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
-import audioRoutes from './routes/audioTranscription.routes.js'; // Assuming audio transcription routes are in class.routes.js
+import audioRoutes from './routes/audioTranscription.routes.js';
 
 import cors from 'cors';
 import registerSocketHandlers from './socket.js';
@@ -25,6 +25,12 @@ connectDB();
 app.use(cors('*'));
 app.use(express.json());
 
+// Attach io to every request so controllers can use req.io (must be before routes)
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/schools', schoolRoutes);
 app.use('/api/chat', chatRoutes);
@@ -33,12 +39,18 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/audio', audioRoutes); // Assuming audio transcription routes are in class.routes.js
+
 // Socket.io setup
 const server = http.createServer(app);
 const io = new SocketServer(server, {
   cors: {
     origin: '*'
   }
+});
+// Attach io to every request so controllers can use req.io
+app.use((req, res, next) => {
+  req.io = io;
+  next();
 });
 registerSocketHandlers(io); // Register all socket events
 
