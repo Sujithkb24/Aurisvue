@@ -15,7 +15,7 @@ const ISLViewer = ({ speechInput, darkMode, shouldTranslate, onTranslationDone }
       if (shouldTranslate && speechInput?.trim()) {
         try {
           setLoading(true);
-          const response = await axios.post('https://aurisvue-api.onrender.com/analyze', {
+          const response = await axios.post('https://aurisvue-api-s08s.onrender.com/analyze', {
             transcript: speechInput,
           });
           console.log('API response:', response.data);

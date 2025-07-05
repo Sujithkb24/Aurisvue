@@ -99,6 +99,7 @@ const Dashboard = () => {
       color: 'from-violet-600 to-fuchsia-600',
       ctaText: 'Explore your classroom insights',
       characterImg: '/assets/characters/teacher-analytics.svg',
+      video: '/assets/classroom.mp4',
       onClick: () => navigate('/teacher-analytics')
     },
     { 
@@ -107,7 +108,7 @@ const Dashboard = () => {
       description: 'Start or manage your ongoing interactive classes.',
       color: 'from-blue-600 to-indigo-600',
       ctaText: 'Start an interactive session now',
-      characterImg: '/assets/characters/teacher-classroom.svg',
+      gif: '/assets/class.gif',
       onClick: () => navigate(`/class/${currentUser?.uid}`) 
     }
   ];
@@ -134,6 +135,7 @@ const Dashboard = () => {
       color: 'from-amber-600 to-orange-600',
       ctaText: 'See where you rank today',
       characterImg: '/assets/characters/leaderboard-character.svg',
+      video: '/assets/rank.mp4',
       onClick: () => navigate('/leaderboard') 
     },
     { 
@@ -143,6 +145,7 @@ const Dashboard = () => {
       color: 'from-rose-600 to-pink-600',
       ctaText: 'Practice your signing skills',
       characterImg: '/assets/characters/quiz-character.svg',
+      video: '/assets/practice.mp4',
       onClick: () => navigate('/quiz') 
     }
   ];
@@ -256,18 +259,46 @@ const Dashboard = () => {
                       } shadow-lg relative overflow-hidden group h-28 sm:h-32 w-full`}
                     >
                       {/* ISL Character that appears on hover - Hidden on very small screens */}
-                      <div className={`absolute right-4 top-4 h-16 sm:h-24 w-16 sm:w-24 transition-all duration-500 ease-in-out hidden sm:block ${
+                      <div className={`absolute right-4 top-4 h-24 sm:h-32 w-24 sm:w-32 transition-all duration-500 ease-in-out hidden sm:block ${
                         activeCardIndex === `teacher-${index}` ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'
                       }`}>
-                        <img 
-                          src={tool.characterImg} 
-                          alt="ISL Character" 
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = "/api/placeholder/96/96";
-                          }}
-                        />
+                        {tool.video ? (
+                          <video
+                            src={tool.video}
+                            className="object-contain w-full h-full rounded-lg"
+                            style={{ maxHeight: '8rem', maxWidth: '8rem' }}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.poster = "/api/placeholder/96/96";
+                            }}
+                          />
+                        ) : tool.gif ? (
+                          <img
+                            src={tool.gif}
+                            alt="Classroom GIF"
+                            className="object-contain w-full h-full"
+                            style={{ maxHeight: '8rem', maxWidth: '8rem' }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "/assets/class.gif";
+                            }}
+                          />
+                        ) : (
+                          <img 
+                            src={tool.characterImg} 
+                            alt="ISL Character" 
+                            className="object-contain w-full h-full"
+                            style={{ maxHeight: '8rem', maxWidth: '8rem' }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "/api/placeholder/96/96";
+                            }}
+                          />
+                        )}
                       </div>
                       
                       <div className="relative flex items-center justify-between h-full">
@@ -402,19 +433,36 @@ const Dashboard = () => {
                           : 'bg-white'
                     } shadow-lg relative overflow-hidden group h-28 sm:h-32 w-full`}
                   >
-                    {/* ISL Character that appears on hover - Hidden on very small screens */}
-                    <div className={`absolute right-4 top-4 h-16 sm:h-24 w-16 sm:w-24 transition-all duration-500 ease-in-out hidden sm:block ${
+                    {/* ISL Character or video that appears on hover - Hidden on very small screens */}
+                    <div className={`absolute right-4 top-4 h-24 sm:h-32 w-24 sm:w-32 transition-all duration-500 ease-in-out hidden sm:block ${
                       activeCardIndex === `common-${index}` ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'
                     }`}>
-                      <img 
-                        src={tool.characterImg} 
-                        alt="ISL Character" 
-                        className="object-contain w-full h-full"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "/api/placeholder/96/96";
-                        }}
-                      />
+                      {tool.video ? (
+                        <video
+                          src={tool.video}
+                          className="object-contain w-full h-full rounded-lg"
+                          style={{ maxHeight: '8rem', maxWidth: '8rem', margin: 'auto' }}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.poster = "/api/placeholder/96/96";
+                          }}
+                        />
+                      ) : (
+                        <img 
+                          src={tool.characterImg} 
+                          alt="ISL Character" 
+                          className="object-contain w-full h-full"
+                          style={{ maxHeight: '8rem', maxWidth: '8rem', margin: 'auto' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "/api/placeholder/96/96";
+                          }}
+                        />
+                      )}
                     </div>
                     
                     <div className="relative flex items-center justify-between h-full">

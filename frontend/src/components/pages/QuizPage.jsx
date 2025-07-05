@@ -200,7 +200,7 @@ const Quiz = ({ darkMode = true }) => {
   // Loading state
   if (loading) {
     return (
-      <div className={`max-w-3xl mx-auto p-6 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+      <div className={`max-w-3xl mx-auto p-6 rounded-lg shadow-lg min-h-screen ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
         <div className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
           <p className="text-lg">Loading ISL quiz questions from Gemini AI...</p>

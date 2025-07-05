@@ -36,6 +36,25 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
     const { getToken } = useAuth();
     const navigate = useNavigate();
     
+    // Helper function to format dates consistently
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    };
+
+    // Helper function for short date format (for charts)
+    const formatShortDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    };
+    
     // Apply dark mode to document when changed (only if we're managing dark mode locally)
     useEffect(() => {
       if (externalDarkMode === undefined) {
@@ -98,6 +117,32 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
         pie: darkMode ? ['#34d399', '#f87171'] : ['#4ade80', '#f87171'],
         axis: darkMode ? '#ffffff' : '#000000' // White axis in dark mode
       }
+    };
+
+    // Custom label renderer for pie chart
+    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
+      const RADIAN = Math.PI / 180;
+      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+      // Only show label if percentage is significant enough
+      if (percent > 0.05) { // 5% threshold
+        return (
+          <text 
+            x={x} 
+            y={y} 
+            fill={darkMode ? '#ffffff' : '#000000'} 
+            textAnchor={x > cx ? 'start' : 'end'} 
+            dominantBaseline="central"
+            fontSize="12"
+            fontWeight="500"
+          >
+            {`${(percent * 100).toFixed(0)}%`}
+          </text>
+        );
+      }
+      return null;
     };
       
     if (isLoading) return (
@@ -200,6 +245,16 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                     <p className={`text-sm ${theme.textMuted}`}>
                       Based on {studentFeedbackMetrics.totalFeedback} student feedback responses
                     </p>
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
+                        <span className={`text-sm ${theme.textMuted}`}>Understood: {studentFeedbackMetrics.understoodPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 bg-red-500 rounded mr-2"></div>
+                        <span className={`text-sm ${theme.textMuted}`}>Not Understood: {(100 - studentFeedbackMetrics.understoodPercentage).toFixed(1)}%</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="w-1/2 h-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -209,10 +264,10 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
+                          label={renderCustomizedLabel}
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
                           {understandingData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={theme.chartColors.pie[index % theme.chartColors.pie.length]} />
@@ -244,13 +299,13 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                       <CartesianGrid strokeDasharray="3 3" stroke={theme.chartColors.grid} />
                       <XAxis 
                         dataKey="week" 
-                        tickFormatter={(date) => new Date(date).toLocaleDateString()}
+                        tickFormatter={formatShortDate}
                         stroke={theme.chartColors.axis}
                       />
                       <YAxis domain={[0, 100]} stroke={theme.chartColors.axis} />
                       <Tooltip 
                         formatter={(value) => [`${value.toFixed(1)}%`, 'Understanding Rate']}
-                        labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                        labelFormatter={formatDate}
                         contentStyle={{ 
                           backgroundColor: theme.cardBg, 
                           borderColor: theme.border, 
@@ -287,13 +342,13 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                     <CartesianGrid strokeDasharray="3 3" stroke={theme.chartColors.grid} />
                     <XAxis 
                       dataKey="week" 
-                      tickFormatter={(date) => new Date(date).toLocaleDateString()}
+                      tickFormatter={formatShortDate}
                       stroke={theme.chartColors.axis}
                     />
                     <YAxis domain={[0, 100]} stroke={theme.chartColors.axis} />
                     <Tooltip 
                       formatter={(value) => [`${value.toFixed(1)}%`, 'Success Rate']}
-                      labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                      labelFormatter={formatDate}
                       contentStyle={{ 
                         backgroundColor: theme.cardBg, 
                         borderColor: theme.border, 
@@ -346,12 +401,12 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
           {/* Feedback Count By Session */}
           <div className={`${theme.cardBg} rounded-lg shadow p-4 mb-6 border ${theme.border}`}>
             <h3 className={`text-xl font-medium mb-4 ${theme.text}`}>Feedback by Session</h3>
-            
-            {sessionAnalytics.length > 0 ? (
+            {/* Only show sessions with feedback_count > 0 */}
+            {sessionAnalytics.filter(s => s.feedback_count > 0).length > 0 ? (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
-                    data={sessionAnalytics.slice(0, 10)} 
+                    data={sessionAnalytics.filter(s => s.feedback_count > 0).slice(0, 10)} 
                     margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke={theme.chartColors.grid} />
@@ -371,7 +426,7 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                     <Legend 
                       wrapperStyle={{ color: theme.text }}
                     />
-                    <Bar 
+                    {/* <Bar 
                       dataKey="feedback_count" 
                       name="Feedback Count" 
                       fill={theme.chartColors.bar1} 
@@ -380,7 +435,7 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                       dataKey="understood_percentage" 
                       name="Understanding %" 
                       fill={theme.chartColors.bar2} 
-                    />
+                    /> */}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -412,7 +467,7 @@ const TeacherAnalyticsDashboard = ({ darkMode: externalDarkMode }) => {
                     <tr key={session.id} className={`hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
                       <td className={`px-4 py-2 border-b ${theme.border} ${theme.text}`}>{session.session_title}</td>
                       <td className={`px-4 py-2 border-b ${theme.border} ${theme.text}`}>
-                        {new Date(session.session_date).toLocaleDateString()}
+                        {formatDate(session.session_date)}
                       </td>
                       <td className={`px-4 py-2 border-b ${theme.border} ${theme.text}`}>
                         {(session.successful_conversions / session.total_conversions * 100).toFixed(1)}%

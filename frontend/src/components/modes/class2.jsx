@@ -1105,7 +1105,7 @@ const renderClassNameModal = () => {
         <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center">
             <button 
-              onClick={onBack || (() => navigate('/'))}
+              onClick={onBack || (() => navigate('/dashboard'))}
               className={`p-2 rounded-full mr-3 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
             >
               <ArrowLeft size={20} />

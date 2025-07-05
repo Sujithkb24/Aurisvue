@@ -34,7 +34,7 @@ Only return valid pure JSON. Do not include markdown or text.
 
 Make sure to generate a different set of questions each time, ensuring they are not repeated from previous outputs.`;
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   try {
     const result = await model.generateContent(prompt);

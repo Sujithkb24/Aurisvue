@@ -914,20 +914,32 @@ const stopCamera = () => {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      
       // Store stream reference for cleanup
       mediaStreamRef.current = stream;
-      
       // Attach stream to video element if available
       if (videoRef.current) {
+        videoRef.current.srcObject = null; // Clear any previous stream
         videoRef.current.srcObject = stream;
+        // Ensure autoplay works (especially on remote streams)
+        videoRef.current.muted = true; // For local preview, always muted
+        videoRef.current.playsInline = true;
+        videoRef.current.autoplay = true;
+        // Try to play, handle promise for autoplay policy
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Try again on user interaction
+            const handler = () => {
+              videoRef.current && videoRef.current.play();
+              document.removeEventListener('click', handler);
+            };
+            document.addEventListener('click', handler, { once: true });
+          });
+        }
       }
-      
       setVideoEnabled(true);
-      
       // In the future, this would connect to ISL recognition service
       console.log("Video capture started - no ISL recognition implemented yet");
-      
     } catch (error) {
       console.error("Error accessing camera:", error);
       setError("Unable to access camera. Please check permissions.");
