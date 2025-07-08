@@ -18,43 +18,48 @@ export default function registerSocketHandlers(io) {
 
     // WebRTC signaling: join room
     socket.on('join_room', (roomId) => {
-      // Leave previous room if any
-      if (currentRoomId) {
-        socket.leave(currentRoomId);
-        
-        // Update room participants
-        if (rooms.has(currentRoomId)) {
-          const roomUsers = rooms.get(currentRoomId);
-          roomUsers.delete(socket.id);
-          
-          if (roomUsers.size === 0) {
-            rooms.delete(currentRoomId);
-          } else {
-            // Notify others that user left
-            socket.to(currentRoomId).emit('user_left', { userId: socket.id });
-          }
-        }
+  console.log(`User ${socket.id} joining room: ${roomId}`);
+  
+  // Leave previous room if any
+  if (currentRoomId) {
+    socket.leave(currentRoomId);
+    
+    // Update room participants
+    if (rooms.has(currentRoomId)) {
+      const roomUsers = rooms.get(currentRoomId);
+      roomUsers.delete(socket.id);
+      
+      if (roomUsers.size === 0) {
+        rooms.delete(currentRoomId);
+      } else {
+        // Notify others that user left
+        socket.to(currentRoomId).emit('user_left', { userId: socket.id });
       }
-      
-      // Join new room
-      socket.join(roomId);
-      currentRoomId = roomId;
-      
-      // Update room participants
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, new Set());
-      }
-      rooms.get(roomId).add(socket.id);
-      
-      // Get existing users in room
-      const roomUsers = Array.from(rooms.get(roomId)).filter(id => id !== socket.id);
-      
-      // Notify new user about existing participants
-      socket.emit('room_users', { users: roomUsers });
-      
-      // Notify others that a new user joined
-      socket.to(roomId).emit('user_joined', { userId: socket.id });
-    });
+    }
+  }
+  
+  // Join new room
+  socket.join(roomId);
+  currentRoomId = roomId;
+  
+  // Update room participants
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, new Set());
+  }
+  rooms.get(roomId).add(socket.id);
+  
+  // Get existing users in room
+  const roomUsers = Array.from(rooms.get(roomId)).filter(id => id !== socket.id);
+  
+  // Notify new user about existing participants
+  socket.emit('room_users', { users: roomUsers });
+  
+  // Notify others that a new user joined
+  socket.to(roomId).emit('user_joined', { userId: socket.id });
+  
+  // IMPORTANT: Confirm room join to client
+  socket.emit('room_joined', { roomId });
+});
 
     // WebRTC signaling: leave room
     socket.on('leave_room', (roomId) => {
@@ -75,19 +80,44 @@ export default function registerSocketHandlers(io) {
       currentRoomId = null;
     });
 
-    socket.on('teacher_speech', (data) => {
-      if (!data.sessionId) return;
-      
-      // Broadcast to the session room (using sessionId as the room name)
-      socket.to(data.sessionId).emit('teacher_speech', data);
-      // Also broadcast to session code if available
-      if (data.room) {
-        socket.to(data.room).emit('teacher_speech', data);
-      }
-      
-      console.log(`Teacher speech broadcast to session ${data.sessionId}:`, 
-        data.text.substring(0, 30) + (data.text.length > 30 ? '...' : ''));
+  socket.on('teacher_speech', (data) => {
+  console.log('Teacher speech received on server:', {
+    sessionId: data.sessionId,
+    text: data.text?.substring(0, 30) + (data.text?.length > 30 ? '...' : ''),
+    isFinal: data.isFinal,
+    room: data.room
+  });
+  
+  if (!data.sessionId) {
+    console.log('No sessionId provided in teacher_speech');
+    return;
+  }
+  
+  // Primary room format - this is what students join
+  const sessionRoom = `session-${data.sessionId}`;
+  
+  // Broadcast to session room
+  socket.to(sessionRoom).emit('teacher_speech', {
+    text: data.text,
+    isFinal: data.isFinal,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Also broadcast to class code room if provided (fallback)
+  if (data.room && data.room !== sessionRoom) {
+    socket.to(data.room).emit('teacher_speech', {
+      text: data.text,
+      isFinal: data.isFinal,
+      timestamp: new Date().toISOString()
     });
+  }
+  
+  console.log(`Teacher speech broadcast to room ${sessionRoom}`);
+  
+  // Log room participants for debugging
+  const roomParticipants = rooms.get(sessionRoom);
+  console.log(`Room ${sessionRoom} has ${roomParticipants?.size || 0} participants`);
+});
     
     // Student transcript handler
     socket.on('student_transcript', (data) => {

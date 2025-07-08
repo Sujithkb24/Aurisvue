@@ -34,6 +34,17 @@ function loadJitsiScript() {
   return _jitsiScriptLoading;
 }
 
+const requestMicrophonePermission = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop()); // Stop immediately, we just needed permission
+    return true;
+  } catch (error) {
+    console.error('Microphone permission denied:', error);
+    return false;
+  }
+};
+
 const Toast = ({ message, actions = [], onClose, duration = 5000 }) => {
   React.useEffect(() => {
     if (duration === null) return;
@@ -65,8 +76,7 @@ const ClassMode = ({ darkMode = true, onBack, navigateToMode, navigateToHome, ac
   const { currentUser, userRole, getToken } = useAuth();
   const { socket, joinRoom, broadcastTeacherSpeech } = useSocket();
   const [className, setClassName] = useState('');
-const [showClassNameModal, setShowClassNameModal] = useState(false);
-  
+  const [showClassNameModal, setShowClassNameModal] = useState(false);
   
   // State for class session
   const [classSession, setClassSession] = useState(null);
@@ -86,13 +96,17 @@ const [showClassNameModal, setShowClassNameModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [error, setError] = useState('');
-  const [studentFeedback, setStudentFeedback] = useState(null); // New state for student feedback
-  // Toast state
+  const [studentFeedback, setStudentFeedback] = useState(null);
   const [toast, setToast] = useState(null);
 
   // State for student feedback
   const [understanding, setUnderstanding] = useState(null);
   const [problemWords, setProblemWords] = useState([]);
+  
+  // State for continue session modal
+  const [showContinueSessionModal, setShowContinueSessionModal] = useState(false);
+  const [pendingActiveSession, setPendingActiveSession] = useState(null);
+  
   // Refs
   const jitsiContainerRef = useRef(null);
   const jitsiApiRef = useRef(null);
@@ -113,56 +127,6 @@ const [showClassNameModal, setShowClassNameModal] = useState(false);
     (darkMode ? 'text-purple-400' : 'text-purple-600') : 
     (darkMode ? 'text-blue-400' : 'text-blue-600');
 
-    useEffect(() => {
-  if (!classJoined) return;
-
- const fetchFeedback = async () => {
-  try {
-    const token = await getToken();
-    const response = await fetch(`${API_URL}/analytics/feedback/${classJoined._id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-
-      // Flatten problematicWords from all feedback entries
-      const feedbackWords = data.data.flatMap((feedback) => 
-        (feedback.problematicWords || []).map((word) => ({
-          word,
-          studentId: feedback.studentId,
-          studentName: feedback.studentName || 'Unknown', // Fallback if studentName is missing
-          timestamp: new Date(feedback.timestamp),
-        }))
-      );
-
-      console.log('Mapped feedback words:', feedbackWords);
-      setProblemWords(feedbackWords);
-    } else {
-      console.error('Failed to fetch feedback:', response.statusText);
-    }
-  } catch (error) {
-    console.error('Error fetching feedback:', error);
-  }
-};
-
-  // Polling mechanism
-  const intervalId = setInterval(fetchFeedback, 2000); // Poll every 2 seconds
-
-  return () => clearInterval(intervalId); // Cleanup interval on unmount
-}, [classJoined, transcriptHistory, studentFeedback]);
-
-    // Add this to an existing useEffect or create a new one
-useEffect(() => {
-  // Only for teachers who have joined a session
-  if (isTeacher && classSession && isMicActive && !transcriptionServiceRef.current) {
-    console.log('Teacher has active mic but no transcription service, starting one');
-    setupTeacherTranscription();
-  }
-}, [isTeacher, classSession, isMicActive]);
-    useEffect(() => {
-      console.log('Transcript history updated:', transcriptHistory);
-    }, [transcriptHistory]);
   // Check if user is authorized and set role
   useEffect(() => {
     if (!currentUser) {
@@ -175,17 +139,21 @@ useEffect(() => {
     // If teacher, check for active session or offer to create one
     if (userRole === 'teacher') {
       (async () => {
-        const token = await getToken();
-        const response = await fetch(`${API_URL}/classes/active`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.activeSession) {
-            setPendingActiveSession(data.activeSession);
-            setShowContinueSessionModal(true);
-            return;
+        try {
+          const token = await getToken();
+          const response = await fetch(`${API_URL}/classes/active`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.activeSession) {
+              setPendingActiveSession(data.activeSession);
+              setShowContinueSessionModal(true);
+              return;
+            }
           }
+        } catch (error) {
+          console.error('Error checking active session:', error);
         }
         setShowClassNameModal(true);
       })();
@@ -195,69 +163,57 @@ useEffect(() => {
         setShowJoinModal(true);
       }
     }
-  }, [currentUser, userRole, navigate]);
+  }, [currentUser, userRole, navigate, getToken]);
 
-  // State for continue session modal
-  const [showContinueSessionModal, setShowContinueSessionModal] = useState(false);
-  const [pendingActiveSession, setPendingActiveSession] = useState(null);
+  // Fetch feedback for teachers
+  useEffect(() => {
+    if (!classJoined) return;
 
-  // Render continue session modal for teacher
-  const renderContinueSessionModal = () => {
-    if (!showContinueSessionModal || !pendingActiveSession) return null;
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-xl p-6 w-full max-w-md`}>
-          <h2 className="text-xl font-bold mb-4">Continue Previous Session?</h2>
-          <p className="mb-4 text-base">
-            You have an active class session: <span className="font-semibold">{pendingActiveSession.title || 'Untitled Session'}</span>.<br/>
-            Would you like to continue it?
-          </p>
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => {
-                setShowContinueSessionModal(false);
-                setShowClassNameModal(true);
-                setPendingActiveSession(null);
-              }}
-              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
-            >
-              Create New
-            </button>
-            <button
-              onClick={() => {
-                setClassSession(pendingActiveSession);
-                setClassCode(pendingActiveSession.code);
-                setJitsiMeetLink(pendingActiveSession.jitsiLink);
-                if (socket && pendingActiveSession._id) {
-                  socket.emit('join_room', `session-${pendingActiveSession._id}`);
-                }
-                setShowContinueSessionModal(false);
-                setPendingActiveSession(null);
-              }}
-              className={`px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors`}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+    const fetchFeedback = async () => {
+      try {
+        const token = await getToken();
+        const response = await fetch(`${API_URL}/analytics/feedback/${classJoined._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
+        if (response.ok) {
+          const data = await response.json();
+          const feedbackWords = data.data.flatMap((feedback) => 
+            (feedback.problematicWords || []).map((word) => ({
+              word,
+              studentId: feedback.studentId,
+              studentName: feedback.studentName || 'Unknown',
+              timestamp: new Date(feedback.timestamp),
+            }))
+          );
+          setProblemWords(feedbackWords);
+        }
+      } catch (error) {
+        console.error('Error fetching feedback:', error);
+      }
+    };
+
+    const intervalId = setInterval(fetchFeedback, 2000);
+    return () => clearInterval(intervalId);
+  }, [classJoined, getToken]);
+
+  // Initialize Jitsi Meet when session and link are ready
   useEffect(() => {
     if (!classSession || !jitsiMeetLink || !jitsiContainerRef.current) return;
-  
-    // First load the script, then init
+    
+    console.log('Initializing Jitsi Meet with link:', jitsiMeetLink);
+    
     loadJitsiScript()
       .then(() => {
         initJitsiMeet();
       })
       .catch(err => {
+        console.error('Failed to load Jitsi script:', err);
         setError('Could not load video conferencing library.');
       });
   
     return () => {
-      // Thorough cleanup
+      // Cleanup on unmount
       if (jitsiApiRef.current) {
         jitsiApiRef.current.dispose();
         jitsiApiRef.current = null;
@@ -268,65 +224,89 @@ useEffect(() => {
         transcriptionServiceRef.current = null;
       }
       
-      // Reset states
       setIsMicActive(false);
       setDetectedSpeech('');
     };
   }, [classSession, jitsiMeetLink]);
-  
 
   // Set up socket events
   useEffect(() => {
-    if (!socket || !currentUser) return;
-    
-    console.log('Setting up socket listeners, user is', isTeacher ? 'teacher' : 'student');
-    
-    // Clean up previous listeners first
-    socket.off('teacher_speech');
-    socket.off('session_update');
-    
-    // Listen for speech updates from teacher
+  if (!socket || !currentUser) return;
+  
+  console.log('Setting up socket listeners, user is', isTeacher ? 'teacher' : 'student');
+  
+  // Clean up ALL previous listeners first
+  socket.off('teacher_speech');
+  socket.off('session_update');
+  socket.off('room_joined');
+  socket.off('room_users');
+  socket.off('user_joined');
+  socket.off('user_left');
+  
+  // Set up teacher_speech listener IMMEDIATELY for students
+  if (!isTeacher) {
+    console.log('Setting up teacher_speech listener for student');
     socket.on('teacher_speech', (speech) => {
-      console.log('TEACHER SPEECH EVENT RECEIVED:', {
+      console.log('STUDENT RECEIVED teacher_speech:', {
         text: speech.text,
         isFinal: speech.isFinal,
-        receivedBy: isTeacher ? 'teacher' : 'student'
+        timestamp: speech.timestamp
       });
       
-      // For students, this is the primary source of transcription
-      if (!isTeacher) {
-        console.log('Student processing teacher speech', speech.text);
-        setDetectedSpeech(speech.text);
-        
-        // Add to transcript history if not empty
-        if (speech.text.trim() && speech.isFinal) {
-          setTranscriptHistory(prev => [...prev, {
-            timestamp: new Date(),
-            text: speech.text
-          }]);
-          
-          // Trigger ISL translation for students
-          setShouldTranslate(true);
-        }
+      // Update detected speech for students
+      setDetectedSpeech(speech.text);
+      
+      // Trigger ISL translation for students
+      if (speech.text.trim()) {
+        setShouldTranslate(true);
+      }
+      
+      // Add to transcript history if final
+      if (speech.text.trim() && speech.isFinal) {
+        setTranscriptHistory(prev => [...prev, {
+          timestamp: new Date(speech.timestamp || Date.now()),
+          text: speech.text
+        }]);
       }
     });
-
-    // Listen for session updates
-    socket.on('session_update', (update) => {
-      console.log('Session update received:', update);
-      if (update.type === 'ended') {
-        handleSessionEnded();
-      }
-    });
-    
-    // Verify socket connection
-    socket.emit('ping_connection', { status: 'checking connection' });
-    
-    return () => {
-      socket.off('teacher_speech');
-      socket.off('session_update');
-    };
-  }, [socket, currentUser, isTeacher, classSession]);
+  }
+  
+  // Listen for room join confirmation
+  socket.on('room_joined', (data) => {
+    console.log('Room joined confirmed:', data.roomId);
+  });
+  
+  // Listen for session updates
+  socket.on('session_update', (update) => {
+    console.log('Session update received:', update);
+    if (update.type === 'ended') {
+      handleSessionEnded();
+    }
+  });
+  
+  // Debug room status
+  socket.on('room_users', (data) => {
+    console.log('Room users:', data.users);
+  });
+  
+  socket.on('user_joined', (data) => {
+    console.log('User joined room:', data.userId);
+  });
+  
+  socket.on('user_left', (data) => {
+    console.log('User left room:', data.userId);
+  });
+  
+  return () => {
+    console.log('Cleaning up socket listeners');
+    socket.off('teacher_speech');
+    socket.off('session_update');
+    socket.off('room_joined');
+    socket.off('room_users');
+    socket.off('user_joined');
+    socket.off('user_left');
+  };
+}, [socket, currentUser, isTeacher]);
 
   // Initialize Jitsi Meet with audio processing
   const initJitsiMeet = () => {
@@ -345,6 +325,8 @@ useEffect(() => {
       const domain = url.hostname;
       const roomName = url.pathname.substring(1);
       
+      console.log('Initializing Jitsi with domain:', domain, 'room:', roomName);
+      
       const displayName = currentUser.displayName || currentUser.name || 'User';
       
       const options = {
@@ -353,8 +335,8 @@ useEffect(() => {
         height: '100%',
         parentNode: jitsiContainerRef.current,
         configOverwrite: {
-          startWithAudioMuted: !isTeacher, // Students join muted
-          startWithVideoMuted: true, // Start with video off
+          startWithAudioMuted: !isTeacher,
+          startWithVideoMuted: true,
           toolbarButtons: [
             'microphone', 'camera', 'desktop', 'fullscreen',
             'settings', 'hangup'
@@ -382,46 +364,27 @@ useEffect(() => {
       jitsiApiRef.current = new JitsiMeetExternalAPI(domain, options);
       
       // Add event listeners
-      // Add event listeners
-jitsiApiRef.current.addEventListeners({
-  // Critical: Handle mic state changes properly 
-  audioMuteStatusChanged: (status) => {
-    console.log('Audio mute status changed:', {
-      muted: status.muted,
-      wasActive: isMicActive,
-      willBeActive: !status.muted,
-      isTeacher
-    });
-    const newMicState = !status.muted;
-    setIsMicActive(newMicState);
-    
-    // Only for teachers: start or stop transcription based on mic state
-    if (isTeacher) {
-      if (newMicState) {
-        console.log('Teacher mic activated, starting transcription');
-        // Force a complete reset and restart of the transcription service
-        if (transcriptionServiceRef.current) {
-          try {
-            transcriptionServiceRef.current.stop();
-          } catch (e) {
-            console.error('Error stopping existing transcription service:', e);
-          }
-          transcriptionServiceRef.current = null;
-        }
-        // Small delay to ensure microphone permissions are properly initialized
-        setTimeout(() => {
-          setupTeacherTranscription();
-        }, 500);
-      } else {
-        console.log('Teacher mic deactivated, stopping transcription');
-        if (transcriptionServiceRef.current) {
-          transcriptionServiceRef.current.stop();
-          transcriptionServiceRef.current = null;
-        }
-      }
+      jitsiApiRef.current.addEventListeners({
+        audioMuteStatusChanged: async (status) => {
+  console.log('Audio mute status changed:', status);
+  const newMicState = !status.muted;
+  setIsMicActive(newMicState);
+  
+  if (isTeacher && newMicState) {
+    // Wait for Jitsi to fully activate the microphone
+    setTimeout(() => {
+      setupTeacherTranscription();
+    }, 3000); // Increased from 2000ms
+  } else if (isTeacher && !newMicState) {
+    // Properly stop transcription
+    if (transcriptionServiceRef.current) {
+      transcriptionServiceRef.current.stopping = true;
+      transcriptionServiceRef.current.stop();
+      transcriptionServiceRef.current = null;
     }
-  },
-
+  }
+},
+        
         readyToClose: () => {
           if (isTeacher) {
             endSession();
@@ -429,6 +392,7 @@ jitsiApiRef.current.addEventListeners({
             leaveSession();
           }
         },
+        
         videoConferenceJoined: (conference) => {
           console.log('Video conference joined:', conference);
           // For teachers: automatically unmute and start transcription
@@ -436,17 +400,18 @@ jitsiApiRef.current.addEventListeners({
             setTimeout(() => {
               console.log('Teacher joined conference, unmuting...');
               jitsiApiRef.current.executeCommand('toggleAudio');
-              // Add a check to verify mic was actually unmuted
+              // Additional check to ensure transcription starts
               setTimeout(() => {
                 if (!isMicActive) {
-                  console.log('Forced mic check - starting transcription directly');
+                  console.log('Forcing mic activation for teacher');
                   setIsMicActive(true);
                   setupTeacherTranscription();
                 }
-              }, 3000); // Additional check after toggleAudio has had time to take effect
+              }, 3000);
             }, 2000);
           }
         },
+        
         participantJoined: (participant) => {
           console.log('Participant joined:', participant);
         }
@@ -457,95 +422,17 @@ jitsiApiRef.current.addEventListeners({
       setError('Failed to connect to video conference.');
     }
   };
-  
-  // Setup audio transcription from Jitsi audio source
-  const setupAudioTranscription = () => {
-    if (isTeacher || !jitsiApiRef.current) return;
-    
-    try {
-      console.log('Setting up student audio transcription with WebRTC approach');
-      
-      // Use Speech Recognition API directly without trying to capture Jitsi audio
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        console.error('Speech recognition not supported in this browser');
-        return;
-      }
-      
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      transcriptionServiceRef.current = new SpeechRecognition();
-      
-      transcriptionServiceRef.current.continuous = true;
-      transcriptionServiceRef.current.interimResults = true;
-      transcriptionServiceRef.current.lang = 'en-US';
-      
-      // Configure speech recognition event handlers
-      transcriptionServiceRef.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0])
-          .map(result => result.transcript)
-          .join('');
-        
-        const isFinal = event.results[0].isFinal;
-        
-        // Update state with transcription
-        setDetectedSpeech(transcript);
-        
-        // If final result, add to transcript and trigger ISL translation
-        if (isFinal && transcript.trim()) {
-          setTranscriptHistory(prev => [...prev, {
-            timestamp: new Date(),
-            text: transcript
-          }]);
-          setShouldTranslate(true);
-          
-          // Send transcript to teacher via socket
-          if (socket) {
-            socket.emit('student_transcript', {
-              sessionId: classSession._id,
-              text: transcript,
-              timestamp: new Date()
-            });
-          }
-        }
-      };
-      
-      // Error and end handlers
-      transcriptionServiceRef.current.onerror = (event) => {
-        console.error('Transcription error:', event.error);
-        // Restart on error
-        setTimeout(() => {
-          if (transcriptionServiceRef.current) transcriptionServiceRef.current.start();
-        }, 1000);
-      };
-      
-      transcriptionServiceRef.current.onend = () => {
-        // Restart if ended unexpectedly
-        if (jitsiApiRef.current) {
-          setTimeout(() => {
-            if (transcriptionServiceRef.current) transcriptionServiceRef.current.start();
-          }, 1000);
-        }
-      };
-      
-      // Start recognition
-      transcriptionServiceRef.current.start();
-      console.log('Transcription service started for student');
-      
-    } catch (error) {
-      console.error('Error setting up audio transcription:', error);
-      // Retry setup after error
-      setTimeout(setupAudioTranscription, 3000);
-    }
-  };
+
   // Setup WebSpeech API for teacher's own transcription
-  const setupTeacherTranscription = () => {
+  const setupTeacherTranscription = async() => {
     if (!isTeacher) return;
     
     try {
-      console.log('Setting up teacher transcription, mic active state:', isMicActive);
+      console.log('Setting up teacher transcription');
       
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.error('Speech recognition not supported in this browser');
+        setError('Speech recognition not supported in this browser');
         return;
       }
       
@@ -559,8 +446,21 @@ jitsiApiRef.current.addEventListeners({
         }
         transcriptionServiceRef.current = null;
       }
-      
-      // Create a fresh instance every time
+      // In setupTeacherTranscription, before stopping existing service:
+
+if (transcriptionServiceRef.current) {
+  console.log('Stopping existing transcription service');
+  transcriptionServiceRef.current.stopping = true; // Add this flag
+  transcriptionServiceRef.current.stop();
+  transcriptionServiceRef.current = null;
+  
+  // Use setTimeout instead of await for delay
+  setTimeout(() => {
+    continueSetup();
+  }, 500);
+  return;
+}
+      // Create a fresh instance
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       transcriptionServiceRef.current = new SpeechRecognition();
       
@@ -571,211 +471,210 @@ jitsiApiRef.current.addEventListeners({
       transcriptionServiceRef.current.maxAlternatives = 1;
       
       // Handle transcription results
-      transcriptionServiceRef.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0])
-          .map(result => result.transcript)
-          .join('');
-        
-        const isFinal = event.results[0].isFinal;
-        
-        // Debug logging
-        console.log('Teacher transcription received:', transcript, 'isFinal:', isFinal);
-        
-        // Update state with transcription
-        setDetectedSpeech(transcript);
-        
-        // If final result, add to transcript history
-        if (isFinal && transcript.trim()) {
-          const newTranscriptItem = {
-            timestamp: new Date(),
-            text: transcript
-          };
-          
-          setTranscriptHistory(prev => [...prev, newTranscriptItem]);
-          
-          // Use the broadcastTeacherSpeech function from SocketContext
-          if (classSession) {
-            broadcastTeacherSpeech(classSession.code, transcript, true);
-          }
-        } else if (transcript.trim()) {
-          // Send interim results too using the SocketContext function
-          if (classSession) {
-            broadcastTeacherSpeech(classSession.code, transcript, false);
-          }
-        }
-      };
+     transcriptionServiceRef.current.onresult = (event) => {
+  const transcript = Array.from(event.results)
+    .map(result => result[0])
+    .map(result => result.transcript)
+    .join('');
+  
+  const isFinal = event.results[event.results.length - 1].isFinal;
+  
+  console.log('Teacher transcription received:', transcript, 'isFinal:', isFinal);
+  
+  // Update state with transcription
+  setDetectedSpeech(transcript);
+  
+  // If final result, add to transcript history
+  if (isFinal && transcript.trim()) {
+    const newTranscriptItem = {
+      timestamp: new Date(),
+      text: transcript
+    };
+    
+    setTranscriptHistory(prev => [...prev, newTranscriptItem]);
+  }
+  
+  // Broadcast to students via socket - ONLY send if there's content
+  if (classSession && socket && transcript.trim()) {
+    const speechData = {
+      sessionId: classSession._id,
+      text: transcript.trim(),
+      isFinal: isFinal,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('Broadcasting teacher speech:', speechData);
+    
+    // Emit with error handling
+    try {
+      socket.emit('teacher_speech', speechData);
+    } catch (error) {
+      console.error('Error broadcasting teacher speech:', error);
+    }
+  }
+};
       
-      // Error handler with better logging
+      // Error handler
       transcriptionServiceRef.current.onerror = (event) => {
-        console.error('Teacher transcription error:', event.error, 'Error details:', event);
+        console.error('Teacher transcription error:', event.error);
         
-        // Don't automatically restart for aborted or network errors
+        // Don't automatically restart for certain errors
         if (event.error === 'aborted' || event.error === 'network') {
-          console.log('Transcription aborted or network error, will not restart automatically');
+          console.log('Transcription aborted or network error');
           return;
         }
         
-        // Otherwise restart if the mic is still active
+        // Restart if mic is still active
         if (isMicActive) {
-          console.log('Scheduling transcription restart after error...');
+          console.log('Restarting transcription after error...');
           setTimeout(() => {
-            console.log('Restarting transcription after error');
-            setupTeacherTranscription(); // Complete reset and restart
+            setupTeacherTranscription();
           }, 1000);
         }
       };
       
       // Handle end event
       transcriptionServiceRef.current.onend = () => {
-        console.log('Teacher transcription ended, mic active:', isMicActive);
-        if (isMicActive) {
-          console.log('Transcription ended but mic still active. Restarting...');
-          // Don't try to restart the same instance, create a fresh one
-          transcriptionServiceRef.current = null;
-          setTimeout(() => {
-            setupTeacherTranscription();
-          }, 1000);
-        }
-      };
+  console.log('Teacher transcription ended');
+  
+  // Only restart if mic is still active and we're not manually stopping
+  if (isMicActive && !transcriptionServiceRef.current?.stopping) {
+    console.log('Auto-restarting transcription...');
+    setTimeout(() => {
+      setupTeacherTranscription();
+    }, 2000);
+  }
+  
+  transcriptionServiceRef.current = null;
+};
       
-      // Extra logging for start
-      console.log('About to start teacher transcription service...');
-      
-      // Start the transcription service with error handling
-      try {
-        transcriptionServiceRef.current.start();
-        console.log('Teacher transcription service started successfully');
-      } catch (err) {
-        console.error('Failed to start teacher transcription:', err);
-        // Clear the service reference to allow future attempts
-        transcriptionServiceRef.current = null;
-        
-        // Try one more time after a delay
-        if (isMicActive) {
-          console.log('Retrying transcription setup after start failure...');
-          setTimeout(() => {
-            setupTeacherTranscription();
-          }, 2000);
-        }
-      }
+      // Start the transcription service
+      console.log('Starting teacher transcription service...');
+      transcriptionServiceRef.current.start();
+      console.log('Teacher transcription service started successfully');
       
     } catch (error) {
       console.error('Error in setupTeacherTranscription:', error);
-      // Always clean up on error
       transcriptionServiceRef.current = null;
-    }
-  };
-  
-  // Check for active session (teacher only)
-  const checkForActiveSession = async () => { 
-    if (userRole !== 'teacher') return;
-    setIsLoading(true);
-    try {
-      const token = await getToken();
-      const response = await fetch(`${API_URL}/classes/active`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.activeSession) {
-          setClassSession(data.activeSession);
-          setClassCode(data.activeSession.code);
-          setJitsiMeetLink(data.activeSession.jitsiLink);
-          // Join the session room (socket.io)
-          if (socket && data.activeSession._id) {
-            socket.emit('join_room', `session-${data.activeSession._id}`);
-          }
-        }
-      }
-    } catch (error) {
-      setError("Error checking for active session");
-    } finally {
-      setIsLoading(false);
+      setError('Failed to start speech recognition');
     }
   };
 
   // Create new class session (teacher only)
   const createClassSession = async () => {
-    if (userRole !== 'teacher') return;
-    setIsLoading(true);
-    try {
-      const token = await getToken();
-      const response = await fetch(`${API_URL}/classes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title: className.trim() || "New ISL Learning Session",
-          description: "Interactive sign language learning session"
-        })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setClassSession(data.session);
-        setClassCode(data.session.code);
-        setJitsiMeetLink(data.session.jitsiMeetLink);
-        setClassJoined(data.session);
-        // Join the session room (socket.io)
-        if (socket && data.session._id) {
-          socket.emit('join_room', `session-${data.session._id}`);
-        }
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to create class session');
-      }
-    } catch (error) {
-      setError('Failed to connect to server');
-    } finally {
-      setIsLoading(false);
+  if (userRole !== 'teacher') return;
+  setIsLoading(true);
+  setError('');
+  
+  try {
+    const token = await getToken();
+    const response = await fetch(`${API_URL}/classes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        title: className.trim() || "New ISL Learning Session",
+        description: "Interactive sign language learning session"
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Class session created:', data.session);
+      
+      setClassSession(data.session);
+      setClassCode(data.session.code);
+      setJitsiMeetLink(data.session.jitsiMeetLink || data.session.jitsiLink);
+      setClassJoined(data.session);
+      
+      // Join the session room (socket.io) - IMPORTANT: Use session._id
+      if (socket && data.session._id) {
+  const roomId = `session-${data.session._id}`;
+  console.log('Teacher joining room:', roomId);
+  
+  // Add a small delay to ensure socket is ready
+  setTimeout(() => {
+    socket.emit('join_room', roomId);
+  }, 100);
+}
+      
+    } else {
+      const errorData = await response.json();
+      setError(errorData.message || 'Failed to create class session');
     }
-  };
+  } catch (error) {
+    console.error('Error creating class session:', error);
+    setError('Failed to connect to server');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Join class session (student only)
-  const joinClassSession = async () => {
-    if (userRole !== 'student' || !classCode.trim()) return;
-    setIsLoading(true);
-    try {
-      const token = await getToken();
-      const response = await fetch(`${API_URL}/classes/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ code: classCode })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setClassSession(data.session);
-        setJitsiMeetLink(data.session.jitsiLink);
-        setShowJoinModal(false);
-        // Join the session room (socket.io)
-        if (socket && data.session._id) {
-          socket.emit('join_room', `session-${data.session._id}`);
-        }
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Invalid class code');
-      }
-    } catch (error) {
-      setError('Failed to connect to server');
-    } finally {
-      setIsLoading(false);
+ const joinClassSession = async () => {
+  if (userRole !== 'student' || !classCode.trim()) return;
+  setIsLoading(true);
+  setError('');
+  
+  try {
+    const token = await getToken();
+    const response = await fetch(`${API_URL}/classes/join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ code: classCode })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Student joined session:', data.session);
+      
+      setClassSession(data.session);
+      setJitsiMeetLink(data.session.jitsiLink || data.session.jitsiMeetLink);
+      setShowJoinModal(false);
+      
+      // Join the session room (socket.io) - IMPORTANT: Use session._id
+      if (socket && data.session._id) {
+  const roomId = `session-${data.session._id}`;
+  console.log('Student joining room:', roomId);
+  
+  // Add a small delay to ensure socket is ready
+  setTimeout(() => {
+    socket.emit('join_room', roomId);
+  }, 100);
+}
+
+    } else {
+      const errorData = await response.json();
+      setError(errorData.message || 'Invalid class code');
     }
-  };
+  } catch (error) {
+    console.error('Error joining class session:', error);
+    setError('Failed to connect to server');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Handle continuing session
   const handleContinueSession = (session) => {
-    // Join the room with the session code (socket.io)
-    if (socket && session._id) {
-      socket.emit('join_room', `session-${session._id}`);
-    }
+    setClassSession(session);
+    setClassCode(session.code);
+    setJitsiMeetLink(session.jitsiLink || session.jitsiMeetLink);
     setClassJoined(session);
-    console.log('Continuing session:', session);
-    setJitsiMeetLink(session.jitsiLink);
+    
+    if (socket && session._id) {
+  const roomId = `session-${session._id}`;
+  console.log('Continuing session, joining room:', roomId);
+  
+  setTimeout(() => {
+    socket.emit('join_room', roomId);
+  }, 100);
+}
   };
   
   // End session (teacher only)
@@ -791,26 +690,9 @@ jitsiApiRef.current.addEventListeners({
         }
       });
       
-      // Clean up Jitsi
-      if (jitsiApiRef.current) {
-        jitsiApiRef.current.dispose();
-      }
+      // Clean up resources
+      cleanup();
       
-      // Clean up audio processing resources
-      if (audioProcessorRef.current) {
-        audioProcessorRef.current.disconnect();
-        audioProcessorRef.current = null;
-      }
-      
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
-      
-      if (transcriptionServiceRef.current) {
-        transcriptionServiceRef.current.stop();
-        transcriptionServiceRef.current = null;
-      }
       setToast({
         message: 'Session ended successfully!',
         actions: [
@@ -829,14 +711,11 @@ jitsiApiRef.current.addEventListeners({
             }
           }
         ],
-        duration: null // Don't auto-dismiss
+        duration: null
       });
+      
       // Reset state
-      setClassSession(null);
-      setClassCode('');
-      setJitsiMeetLink('');
-      setIsMicActive(false);
-      setTranscriptHistory([]);
+      resetSessionState();
       
       // Notify all users in the room that the session ended
       if (socket) {
@@ -846,63 +725,21 @@ jitsiApiRef.current.addEventListeners({
         });
       }
     } catch (error) {
+      console.error('Error ending session:', error);
       setError("Error ending session");
     }
   };
   
   // Leave session (student only)
   const leaveSession = () => {
-    // Clean up Jitsi
-    if (jitsiApiRef.current) {
-      jitsiApiRef.current.dispose();
-    }
-    
-    // Clean up audio processing resources
-    if (audioProcessorRef.current) {
-      audioProcessorRef.current.disconnect();
-      audioProcessorRef.current = null;
-    }
-    
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    
-    if (transcriptionServiceRef.current) {
-      transcriptionServiceRef.current.stop();
-      transcriptionServiceRef.current = null;
-    }
-    
-    // Reset state
-    setClassSession(null);
-    setClassCode('');
-    setJitsiMeetLink('');
-    setDetectedSpeech('');
-    setTranscriptHistory([]);
+    cleanup();
+    resetSessionState();
   };
   
   // Session ended handler
   const handleSessionEnded = () => {
-    // Clean up Jitsi
-    if (jitsiApiRef.current) {
-      jitsiApiRef.current.dispose();
-    }
+    cleanup();
     
-    // Clean up audio processing resources
-    if (audioProcessorRef.current) {
-      audioProcessorRef.current.disconnect();
-      audioProcessorRef.current = null;
-    }
-    
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    
-    if (transcriptionServiceRef.current) {
-      transcriptionServiceRef.current.stop();
-      transcriptionServiceRef.current = null;
-    }
     setToast({
       message: 'The session has ended.',
       actions: [
@@ -913,17 +750,47 @@ jitsiApiRef.current.addEventListeners({
       ],
       duration: 7000
     });
-    // Reset state
-    setClassSession(null);
-    setClassCode('');
-    setJitsiMeetLink('');
-    setDetectedSpeech('');
-    setTranscriptHistory([]);
+    
+    resetSessionState();
     
     // For students, show join modal again
     if (!isTeacher) {
       setShowJoinModal(true);
     }
+  };
+  
+  // Cleanup function
+  const cleanup = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.dispose();
+      jitsiApiRef.current = null;
+    }
+    
+    if (audioProcessorRef.current) {
+      audioProcessorRef.current.disconnect();
+      audioProcessorRef.current = null;
+    }
+    
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    if (transcriptionServiceRef.current) {
+      transcriptionServiceRef.current.stop();
+      transcriptionServiceRef.current = null;
+    }
+  };
+  
+  // Reset session state
+  const resetSessionState = () => {
+    setClassSession(null);
+    setClassCode('');
+    setJitsiMeetLink('');
+    setIsMicActive(false);
+    setDetectedSpeech('');
+    setTranscriptHistory([]);
+    setClassJoined(null);
   };
   
   // Share class code
@@ -951,6 +818,44 @@ jitsiApiRef.current.addEventListeners({
         duration: 7000
       });
     }
+  };
+
+  // Render continue session modal for teacher
+  const renderContinueSessionModal = () => {
+    if (!showContinueSessionModal || !pendingActiveSession) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-xl p-6 w-full max-w-md`}>
+          <h2 className="text-xl font-bold mb-4">Continue Previous Session?</h2>
+          <p className="mb-4 text-base">
+            You have an active class session: <span className="font-semibold">{pendingActiveSession.title || 'Untitled Session'}</span>.<br/>
+            Would you like to continue it?
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setShowContinueSessionModal(false);
+                setShowClassNameModal(true);
+                setPendingActiveSession(null);
+              }}
+              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+            >
+              Create New
+            </button>
+            <button
+              onClick={() => {
+                handleContinueSession(pendingActiveSession);
+                setShowContinueSessionModal(false);
+                setPendingActiveSession(null);
+              }}
+              className={`px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors`}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Render join modal for students
